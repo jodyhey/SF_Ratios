@@ -1,0 +1,174 @@
+// usage: 
+// slim -s <SEED> -d simu=<sim number> -d MU=<MU RATE> -d R=<R RATE> \
+//      -d N=<POPSIZE> -d L=<CHR LENGTH> -d Ns=<NS> -d n=<SAMPLE SIZE> \
+//      -d intronL=<INTRON LENGTH> -d exonL=<EXON LENGTH> \
+//		  -d param1=<0> -d param2=<0> \
+//		  -d PSCi=<POPULATION SIZE CHANGE (i)NTENSITY> \
+//      -d o=<OUTPUT DIR>  models/ibottleneck_lognormal.slim
+
+// set up a simple neutral simulation
+initialize() {
+	
+	// UPLOAD FUNCTIONS - THIS DOES NOT CHANGE
+	source("./slim_work/functions/slim_fun.eidos");
+	
+	// FOR DEBUGGING ONLY
+	//defineGlobal("seed", 123456);
+	//defineGlobal("simu", 1);
+	//defineGlobal("MU", (1e-6/4));
+	//defineGlobal("R", (1e-6/4));
+	//defineGlobal("N", 1000);
+	//defineGlobal("L", 10000);
+	//defineGlobal("Ns", -2);
+	defineGlobal("intronL", 810); // at this point, it doesn't matter the size 
+	defineGlobal("exonL", 324);
+	//defineGlobal("n", 40);
+	
+	
+	//BOTTLENECK INTENSITY //	
+	defineGlobal("PSCi", 0.10); // This defines the population size change intensity (multiplicate N for bottlenecks)
+	//defineGlobal("outDir", "/Users/tur92196/Desktop");	
+	
+	// PARAMETERS FOR THE 2NS (NOT IN USE IN THE FIXED 2NS MODEL)
+	//defineGlobal("param1", 0.3);
+	//defineGlobal("param2", 0.5);
+	
+	// FOR DEBUGGING
+	// Track pedigree
+	//initializeSLiMOptions(keepPedigrees=T);	
+	
+	// ARGUMENTS ARE PARSED FROM CMD
+	//setSeed(seed);
+	defineGlobal("basename", paste0(simu + "_" + getSeed())); // This is for the simplified output file naming
+	
+	initializeMutationRate(MU);
+	// neutral mutations	
+	initializeMutationType("m1", 0.5, "f", 0.0);
+	// non-neutral mutations in exons starts as neutral; s are modified by mutation()  
+	initializeMutationType("m2", 0.5, "f", 0.0);
+	
+	// CONVERT TO SUBSTITUTIONS = TRUE	
+	m1.convertToSubstitution = T;
+	m2.convertToSubstitution = T;
+	
+	// MULTIPLE MUTATIONS POLICY: FIRST
+	// "s" for stacking (default in SLiM); "f" for first (others are discarted), "l" for last
+	m1.mutationStackPolicy = "f";
+	m2.mutationStackPolicy = "f";
+	
+	// INITIALIZE GENOME ELEMENTS
+	initializeGenomicElementType("g1", m1, 1);
+	initializeGenomicElementType("g2", m2, 1);
+	
+	// POPULATION SIZE AFTER BOTTLENECK
+	defineGlobal("Nb", asInteger(N*PSCi)); // This defines the population size after the bottleneck with intensity "PSCi"
+	
+	// Test if the sample size n is higher than the population size
+	if (n > N)
+		stop("Sample size n can't be larger than the population size N!!!");
+	else if (n > Nb)
+		stop("Sample size n can't be larger than the population size after the bottleneck!!!");
+	
+	//	Generates intron/exons pairs programatically
+	base=0;
+	while (base < L) {
+		
+		if ((L-1) - base < (intronL + exonL)){
+			
+			// Make one intron to fill the remaning gap  
+			initializeGenomicElement(g1, base, (base + ((L-1) - base)));
+		
+		}	else {
+			// Make one intron & exon pair   
+			initializeGenomicElement(g1, base, (base + intronL - 1));
+			
+			//exon_length = exonL;
+			initializeGenomicElement(g2, (base + intronL), (base + intronL + exonL - 1));
+		
+		}
+		
+		// Update base length
+		base = base + intronL + exonL;
+	}// end of while
+	
+	
+	// SINGLE RECOMBINATION RATE
+	initializeRecombinationRate(R);
+
+}
+
+/** INITIALIZE BLOCK */
+// Create a population of size N individuals
+1 late() {
+	sim.addSubpop("p0", N);
+	
+	// schedule SAMPLING BLOCK
+	//community.rescheduleScriptBlock(s0, start=10*N+1, end=10*N+1);
+	//community.rescheduleScriptBlock(s1, start=10*N+Nb, end=10*N+Nb); //Maybe here makes longer given the intensity of bottleneck
+
+}
+
+/** NEW MUTATIONS SELECTION COEFFICIENTS */
+// MUTATION CALLBACK VERSION OF SELCOEFF 
+// RE-SCALE NEW MUTATIONS 2Ns TO s BY DIVIDING BY generation N (`POPULATION SIZE`)
+// IT NEEDS TO START SIMULATION WITH M2 MUTATIONS WITH FITNESS ZERO
+// REMEMBER, MUTATAION() MODIFIES ONLY NEW MUTATIONS SELCOEFF
+mutation(m2) {
+	muts_selCoeffs = max(-100001.0, 1 - rlnorm(1, param1, param2))/(p0.individualCount);
+	mut.setSelectionCoeff(muts_selCoeffs);
+	return T;
+}
+
+/** DEMOGRAPHY BLOCK */
+// Instantaneous population size change - Bottleneck
+// Bottleneck intensity N*PSCi
+//s0 999999 early(){
+10000  early(){
+	p0.setSubpopulationSize(Nb);
+}
+
+/** SEGRAGATING MUTATIONS RE-SCALLING SELECTION COEFFICIENTS */
+// THIS FORCES ALL NEW MUTATIONS TO HAVE THE s = Ns/Nb
+10000 late(){
+	sim_sel_muts = sim.mutationsOfType(m2);
+	seg_sel_muts = sim_sel_muts[sim_sel_muts.originTick < 10000];
+	
+	if (size(seg_sel_muts) > 0){
+		seg_sel_muts_selcoeffs = seg_sel_muts.selectionCoeff;
+		
+		for (u in seqAlong(seg_sel_muts_selcoeffs)){
+			s_rescaled = (seg_sel_muts_selcoeffs[u]*N)/Nb;
+			seg_sel_muts[u].setSelectionCoeff(s_rescaled);
+		} //loop	
+	} //if
+}
+
+/** SAMPLING BLOCK */
+//s1 999999 late(){
+10100 early(){
+	// FOLDED SFS
+	m1fsfs = fsfs(p0, m1, n, F);
+	m2fsfs = fsfs(p0, m2, n, F);
+	//print(m1fsfs);
+	//print("\n");
+	//print(m2fsfs);
+	//print("\n");
+	
+	// Save FSFSs to a file:
+	writeSFS(m1fsfs, paste0("sfs_neutral_" + basename), outDir);
+	writeSFS(m2fsfs, paste0("sfs_selected_" + basename), outDir);
+	
+	// UNFOLDED SFS
+	//m1usfs = usfs(p0, m1, n, F);
+	//m2usfs = usfs(p0, m2, n, F);
+	//print(m1usfs);
+	//print("\n");
+	//print(m2usfs);
+	//print("\n");
+	
+	// Save USFSs to a file:
+	//writeSFS(m1usfs, paste0("sfs_neutral_" + basename), outDir);
+	//writeSFS(m2usfs, paste0("sfs_selected_" + basename), outDir);
+	
+	sim.simulationFinished();
+}

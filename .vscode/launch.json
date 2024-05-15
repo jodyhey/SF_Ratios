@@ -1,0 +1,54 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+      {
+        "name": "debug PRF_Ratio.py",
+        "type": "debugpy",
+        "request": "launch",
+        "program": "./PRF_Ratio.py",
+        "console": "integratedTerminal",
+        "cwd": "${workspaceFolder}",
+        "args": ["-r","../prfratio/drosophila/temp","-i","1","-f","isfolded","-g","-w","-a","./data/ZI_sfs_si_paired_with_nonsynynous_downsampled_folded.txt","-p","ZI","-d","lognormal","-m","1.0","-y"]
+        
+      },
+      {
+        "name": "debug Simulate_SFS_with_SLiM.py",
+        "type": "debugpy",
+        "request": "launch",
+        "program": "./performance/Simulate_SFS_with_SLiM.py",
+        "console": "integratedTerminal",
+        "args": ["-r", "20", "-U", "2.5E-07", "-R", "2.5E-07", "-g", "-1", "-b", "temp", "-N", "1000", "-L", "10000", "-f", "-k", "400", "-n", "100", "-m", "constant_fixed"],
+        "cwd": "${workspaceFolder}/performance"
+      },
+      {
+        "name": "debug Estimation_on_SLiM_SFS_simulations.py",
+        "type": "debugpy",
+        "request": "launch",
+        "program": "./Estimation_on_SLiM_SFS_simulations.py",
+        "console": "integratedTerminal",
+        //"args": ["-s", "1", "-l", "fixed", "-f", "isfolded", "-k", "20", "-i", "-n", "200", "-W", "./slim_work/output/constant_fixed/temp", "-w"],
+        "args":["-d","lognormal","-f","isfolded","-i","2","-k","3","-n","200","-W","../../slimwork/constant_lognormal","-O","./Results_SFS_with_SLiM"],
+        "cwd": "${workspaceFolder}/performance"
+      },
+      {
+        "name": "debug Estimation_on_WrightFisher_PRF_simulations.py",
+        "type": "debugpy",
+        "request": "launch",
+        //"program": "./performance/Estimation_on_WrightFisher_PRF_simulations.py",
+        "program": "./Estimation_on_WrightFisher_PRF_simulations.py",
+        "console": "integratedTerminal",
+        //"args": ["-o", "LowQ", "-b", "-f", "-k", "500", "-n", "100", "-s", "1", "-p", "50", "-q", "50", "-y", "chi2"],
+        "args":["-o","debugHiQz","-b","-y","power","-f","-k","5","-n","100","-s","1","-p","500","-q","500"],
+        "cwd": "${workspaceFolder}/performance"
+      }
+      {
+        "name": "debug make_2Ns_distribution_plot.py",
+        "type": "debugpy",
+        "request": "launch",
+        "program": "./make_2Ns_distribution_plot.py",
+        "console": "integratedTerminal",
+        "args":["-f","../../prfratio/drosophila/5_5_2024_ZI/Syn_ZI_Qratio_normal_estimates.out","-p","Zambia"]
+        "cwd": "${workspaceFolder}/utilities"
+      }
+    ]
+  }

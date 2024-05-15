@@ -1,0 +1,139 @@
+// Functions definitions
+function (*)getNumberSNPsFromPop(o<Subpopulation>$ subpop, o<MutationType>$ mutType)
+{
+	// Number of polymorphic sites from the population
+	muts = sim.mutationsOfType(mutType);
+	pf = subpop.individuals.genomes.mutationFrequenciesInGenomes(muts);
+	nsnps = size(pf[pf > 0 & pf < 1]);
+	return nsnps;
+}
+
+function (*)getNumberSNPsFromSample(o<Subpopulation>$ subpop, o<MutationType>$ mutType, i$ sampleSize)
+{
+	// Number of polymorphic sites in the sample of n individuals
+	muts = sim.mutationsOfType(mutType);
+	si = sample(subpop.individuals, size = sampleSize, replace = F);
+	sf = si.genomes.mutationFrequenciesInGenomes(muts);
+	nsnps = size(sf[sf > 0 & sf < 1]);
+	return nsnps;
+}
+
+function (*)fsfs(o<Subpopulation>$ subPop, o<MutationType>$ mutType, i$ sampleSize, [logical$ outInvariants = F])
+{
+	// sample individuals from the population
+	chr = 2*sampleSize;
+	muts = sim.mutationsOfType(mutType);
+	si = sample(subPop.individuals, size = sampleSize, replace = F);
+	vdac = si.genomes.mutationCountsInGenomes(muts);
+	
+	// Calculate the FSFS
+	fsfs = rep(0, sampleSize+1);
+	for (i in seqAlong(vdac))
+	{
+	    // get the derived and ancestral allele counts
+       dac = vdac[i];	
+       aac = chr - dac;	
+	
+	    // set the minimum for the folded-sfs
+	    mac = min(c(aac, dac));
+	
+	    // fill the vector with the counts for each bin
+	    fsfs[mac] = fsfs[mac] + 1;
+	}//end of for loop
+	
+	// if output invariants, return the full folded-sfs, 
+	// if not, remove the invariant bin
+	if (outInvariants)
+	   return fsfs[0:(size(fsfs)-1)];
+	else
+	   return fsfs[1:(size(fsfs)-1)];
+}
+
+function (*)usfs(o<Subpopulation>$ subPop, o<MutationType>$ mutType, i$ sampleSize, [logical$ outInvariants = F])
+{
+	// Sample individuals from the population
+	chr = 2*sampleSize;
+	muts = sim.mutationsOfType(mutType);
+	si = sample(subPop.individuals, size = sampleSize, replace = F);
+	vdac = si.genomes.mutationCountsInGenomes(muts);
+	
+	// unfolded SFS
+	sfs = rep(0, chr+1);
+	for (i in seqAlong(vdac))
+	{
+		// fill the vector with the counts for each bin
+		sfs[vdac[i]] = sfs[vdac[i]] + 1;
+	}//end of for loop
+	
+	if (outInvariants)
+		return sfs[0:(size(sfs)-1)];
+	else
+		return sfs[1:(size(sfs)-1)];
+}
+
+function (void)writeSFS(i sfs, s$ basename, s$ path)
+{
+    writeFile(filePath=paste0(path + "/" + basename + ".txt"), contents = paste(sfs), append=F);
+} 
+
+
+// Maybe remove
+//function (void)writeFSFS(i fsfs, s$ mutName, s$ path)
+//{
+//	// Output the FSFS to a file      
+//	for (i in seqAlong(fsfs))
+//	{
+//		bin = paste(i+1 + "\t" + fsfs[i]);
+//		writeFile(filePath=paste0(path + "/" + mutName + "_fsfs.txt"), contents=bin , append=T);
+//	}// end for loop
+//
+//
+//}
+
+// Functions from SLiM recipe 9.11
+// Heterozygosity Ne
+function (float)estimateNe_Heterozygosity(o<Subpopulation>$ subpop, f$ mutRate)
+{
+	pi = calcHeterozygosity(subpop.genomes);
+	return pi / (4 * mutRate);
+}
+
+function (integer)tabulateFecundity(o<Subpopulation>$ subpop, i$ previous_N)
+{
+	parentIDs = subpop.individuals.pedigreeParentIDs;
+	rescaledParentIDs = parentIDs - min(parentIDs);
+	return tabulate(rescaledParentIDs, previous_N - 1);
+}
+
+// Inbreeding Ne
+function (float)estimateNe_Inbreeding(o<Subpopulation>$ subpop)
+{
+	previous_N = subpop.getValue("previous_N");
+	k = tabulateFecundity(subpop, previous_N);
+	return (previous_N * mean(k) - 2) / (mean(k) - 1 + var(k) / mean(k));
+}
+
+// Function from TrackSel Pipeline
+function (io)countGametes(io$ x)
+	{
+		n = sum(sim.subpopulations.individuals.pedigreeParentIDs == x);
+		return n;	
+	}
+	
+// Inbreeding Ne
+function (float)trackSel_NeInbreeding(o<Subpopulation>$ subpop)
+{
+   uniqParents = unique(sim.subpopulations.individuals.pedigreeParentIDs);
+	
+	gametes = sapply(uniqParents, "countGametes(applyValue);"); // k => Gamete contribution of each parente (g-1 individuals);
+
+	if (size(gametes) > 1)
+	{
+		ne = (4*subpop.individualCount)/(2+var(gametes));
+	} else {
+		ne = (4*subpop.individualCount)/(2+0); //Ne = 2N;
+	}	
+	
+	return ne;
+
+}

@@ -1,0 +1,175 @@
+// usage: 
+// slim -s <SEED> -d simu=<sim number> -d MU=<MU RATE> -d R=<R RATE> \
+//      -d N=<POPSIZE> -d L=<CHR LENGTH> -d Ns=<NS> -d n=<SAMPLE SIZE> \
+//      -d intronL=<INTRON LENGTH> -d exonL=<EXON LENGTH> \
+//		  -d param1=<0> -d param2=<0> \
+//      -d ISi=<ISOLATION (i)NTENSITY> \
+//      -d o=<OUTPUT DIR>  models/popstructure_lognormal.slim
+
+// set up a simple neutral simulation
+initialize() {
+	
+	// UPLOAD FUNCTIONS - THIS DOES NOT CHANGE
+	source("./slim_work/functions/slim_fun.eidos");
+	
+	// FOR DEBUGGING ONLY
+   //defineGlobal("seed", 123456);
+	//defineGlobal("simu", 1);
+	//defineGlobal("MU", (1e-6/4));
+	//defineGlobal("R", (1e-6/4));
+	//defineGlobal("N", 1000);
+	//defineGlobal("L", 10000);
+	//defineGlobal("Ns", 0);
+	defineGlobal("intronL", 810); // at this point, it doesn't matter the size 
+	defineGlobal("exonL", 324);
+	//defineGlobal("n", 40);
+   //defineGlobal("outDir", "/Users/tur92196/Desktop");	
+	
+	// ISOLATION INTENSITY  //
+	defineGlobal("ISi", 5); // This defines the isolation intensity after the split (this multiplicates N)
+	
+	// PARAMETERS FOR THE 2NS (NOT IN USE IN THE FIXED 2NS MODEL)
+	//defineGlobal("param1", 0.0); // meanlog
+	//defineGlobal("param2", 0.0); // sdlog
+	
+	// FOR DEBUGGING
+	// Track pedigree
+   //initializeSLiMOptions(keepPedigrees=T);
+	
+	// Arguments are parsed from command line
+	//setSeed(seed);
+	defineGlobal("basename", paste0(simu + "_" + getSeed())); // This is for the simplified output file naming
+	
+	initializeMutationRate(MU);
+	// neutral mutations
+	initializeMutationType("m1", 0.5, "f", 0.0);
+	// non-neutral mutations in exons starts as neutral; s are modified by mutation()     
+	initializeMutationType("m2", 0.5, "f", 0.0); 
+	
+	// CONVERT TO SUBSTITUTIONS AS TRUE	
+	m1.convertToSubstitution = T;
+	m2.convertToSubstitution = T;
+	
+	// MULTIPLE MUTATIONS POLICY
+	// "s" for stacking (default in SLiM); "f" for first (others are discarted), "l" for last
+	m1.mutationStackPolicy = "f";
+	m2.mutationStackPolicy = "f";
+	
+	// INITIALIZE GENOME ELEMENTS
+	initializeGenomicElementType("g1", m1, 1);
+	initializeGenomicElementType("g2", m2, 1);
+	
+	// ISOLATION DURATION //
+	defineGlobal("Ti", asInteger(N*ISi)); // This defines the isolation time.
+	
+	//	Generates intron/exons pairs programatically
+	base=0;
+	while (base < L) {    
+	    
+       if ((L-1) - base < (intronL + exonL)){
+           
+           // Make one intron to fill the remaning gap  
+		     initializeGenomicElement(g1, base, (base + ((L-1) - base)));
+       
+       }	else {
+           // Make one intron & exon pair   
+		     initializeGenomicElement(g1, base, (base + intronL - 1));
+		 
+		     //exon_length = exonL;
+		     initializeGenomicElement(g2, (base + intronL), (base + intronL + exonL - 1));
+       
+       }    
+	    
+	    // Update base length
+       base = base + intronL + exonL;	
+	}// end of while
+	
+	
+	// single recombination rate	
+	initializeRecombinationRate(R);
+
+}
+
+/** INITIALIZE BLOCK */
+// Create a population of size N individuals
+1 late() {
+	sim.addSubpop("p0", N);
+	
+	// schedule SAMPLING BLOCK
+	community.rescheduleScriptBlock(s0, start=10*N, end=10*N);
+	community.rescheduleScriptBlock(s1, start=(10*N)+Ti, end=(10*N)+Ti);
+	community.rescheduleScriptBlock(s2, start=(10*N)+Ti, end=(10*N)+Ti);
+	community.rescheduleScriptBlock(s3, start=(10*N)+Ti, end=(10*N)+Ti);
+
+}
+
+/** NEW MUTATIONS SELECTION COEFFICIENTS */
+// MUTATION CALLBACK VERSION OF SELCOEFF 
+// RE-SCALE NEW MUTATIONS 2Ns TO s BY DIVIDING BY generation N (`POPULATION SIZE`)
+// IT NEEDS TO START SIMULATION WITH M2 MUTATIONS WITH FITNESS ZERO
+// REMEMBER, MUTATAION() MODIFIES ONLY NEW MUTATIONS SELCOEFF
+mutation(m2) {
+	//muts_selCoeffs = max(-1001.0, 1 - rlnorm(1, param1, param2))/(p0.individualCount); 
+	//mut.setSelectionCoeff(muts_selCoeffs);
+	mut.setSelectionCoeff(Ns/p0.individualCount);
+	return T;
+	
+}
+
+/** POPULATION SPLIT BLOCK */
+s0 999999 early(){
+// 10000 early(){
+    
+    // Population split at times 10N
+    sim.addSubpopSplit("p1", N, p0);
+}
+
+/** POPULATION JOINT BLOCKS */
+// set up p2 to generate itself entirely from migrants
+// Merge 0.5N of each subpopulation into one population of size N
+s1 999999 early(){
+// 15000 early (){
+    
+    sim.addSubpop("p2", N);
+    p2.setMigrationRates(c(p0,p1), c(0.5, 0.5)); // Is this a bottlneck?
+}
+
+// remove the source subpopulations
+s2 999999 late(){
+// 15000 late(){
+
+	 p2.setMigrationRates(c(p0, p1), c(0.0, 0.0));
+	 p0.setSubpopulationSize(0);
+	 p1.setSubpopulationSize(0);
+}
+
+/** SAMPLING BLOCK */
+s3 999999 late(){
+//15001 late(){ ??
+
+	// FOLDED SFS	
+	m1fsfs = fsfs(p2, m1, n, F);
+	m2fsfs = fsfs(p2, m2, n, F);
+	//print(m1fsfs);
+	//print("\n");
+	//print(m2fsfs);
+	//print("\n");
+	
+	// Save FSFSs to a file:
+	writeSFS(m1fsfs, paste0("sfs_neutral_" + basename), outDir);
+	writeSFS(m2fsfs, paste0("sfs_selected_" + basename), outDir);
+	
+	// UNFOLDED SFS
+	//m1usfs = usfs(p2, m1, n, F);
+	//m2usfs = usfs(p2, m2, n, F);
+	//print(m1usfs);
+	//print("\n");
+	//print(m2usfs);
+	//print("\n");
+	
+	// Save USFSs to a file:
+	//writeSFS(m1usfs, paste0("sfs_neutral_" + basename), outDir);
+	//writeSFS(m2usfs, paste0("sfs_selected_" + basename), outDir);
+	
+	 sim.simulationFinished();
+}

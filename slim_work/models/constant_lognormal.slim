@@ -1,0 +1,136 @@
+// usage: 
+// slim -s <SEED> -d simu=<sim number> -d MU=<MU RATE> -d R=<R RATE> \
+//      -d N=<POPSIZE> -d L=<CHR LENGTH> -d NS=<0> -d n=<SAMPLE SIZE> \
+//      -d intronL=<INTRON LENGTH> -d exonL=<EXON LENGTH> \
+//      -d param1=<PARAM1> -d param2=<PARAM2> \
+//      -d o=<OUTPUT DIR>  models/constant_lognormal.slim
+
+// set up a simple neutral simulation
+initialize() {
+	
+	// UPLOAD FUNCTIONS - THIS DOES NOT CHANGE
+	source("./slim_work/functions/slim_fun.eidos");
+	
+	// FOR DEBUGGING ONLY
+	//defineGlobal("seed", 123456);
+	//defineGlobal("simu", 1);
+	//defineGlobal("MU", (1e-6/4));
+	//defineGlobal("R", (1e-6/4));
+	//defineGlobal("N", 1000);
+	//defineGlobal("L", 10000);
+	//defineGlobal("Ns", 0);    // For this script, it is always zero
+	defineGlobal("intronL", 810); // at this point, it doesn't matter the size 
+	defineGlobal("exonL", 324);
+	//defineGlobal("n", 40);
+	//defineGlobal("outDir", "/Users/tur92196/Desktop");	
+	
+	// PARAMETERS FOR THE 2NS LOGNORMAL DISTRIBUTION
+	//defineGlobal("param1", 1.0);  //meanlog
+	//defineGlobal("param2", 1.0);	//sdlog
+	
+	// FOR DEBUGGING
+	// Track pedigree
+	//initializeSLiMOptions(keepPedigrees=T);
+	
+	// Arguments are parsed from command line
+	//setSeed(seed);
+	defineGlobal("basename", paste0(simu + "_" + getSeed())); // This is for the simplified output file naming
+	
+	initializeMutationRate(MU);
+	// neutral mutations
+	initializeMutationType("m1", 0.5, "f", 0.0);
+	// initialized non-neutral mutation as neutral; SelectionCoeff are modified by a mutation() callback         
+	initializeMutationType("m2", 0.5, "f", Ns/(2*N)); // selCoeff is zero, it doesn't make sense this calculation, but it keeps consistency across model's script           
+	
+	// convertToSubstitution allows sites with fixations to be resused
+	// CONVERT TO SUBSTITUTIONS AS TRUE	
+	m1.convertToSubstitution = T;
+	m2.convertToSubstitution = T;
+	
+	// MULTIPLE MUTATIONS POLICY
+	// mutationStackPolicy= "f" prevents multiple segregating mutations at each site for a given mutation class
+	// "s" for stacking (default in SLiM); "f" for first (others are discarted), "l" for last
+	m1.mutationStackPolicy = "f";
+	m2.mutationStackPolicy = "f";
+	
+	initializeGenomicElementType("g1", m1, 1);
+	initializeGenomicElementType("g2", m2, 1);
+	
+	//	Generates intron/exons pairs programatically
+	base=0;
+	while (base < L) {
+		
+		if ((L-1) - base < (intronL + exonL)){
+			
+			// Make one intron to fill the remaning gap  
+			initializeGenomicElement(g1, base, (base + ((L-1) - base)));
+		
+		}	else {
+			// Make one intron & exon pair   
+			initializeGenomicElement(g1, base, (base + intronL - 1));
+			
+			//exon_length = exonL;
+			initializeGenomicElement(g2, (base + intronL), (base + intronL + exonL - 1));
+		
+		}
+		
+		// Update base length
+		base = base + intronL + exonL;
+	}// end of while
+	
+	
+	// single recombination rate	
+	initializeRecombinationRate(R);
+
+}
+
+// Create a population of size N individuals
+1 late() {
+	sim.addSubpop("p0", N);
+	
+	// DEBUGGING ONLY
+	//p0.setValue("previous_N", p0.individualCount);
+	//
+	// Create a log file to track changes in population size for debugging only
+	//log = community.createLogFile(paste0(outDir + "/" + basename + "_Ne_log.csv"), logInterval=1);
+	//log.addCycle();
+	//log.addCustomColumn("N(t-1)", "p0.getValue('previous_N');");
+	//log.addCustomColumn("N(t)", "p0.individualCount;");
+	//log.addCustomColumn("Ne_heterozygosity", "estimateNe_Heterozygosity(p0, MU);");
+	//log.addCustomColumn("Ne_inbreeding", "estimateNe_Inbreeding(p0);");
+	//log.addCustomColumn("Ne_inbreeding2", "trackSel_NeInbreeding(p0);");
+	
+	// schedule SAMPLING BLOCK
+	// 10N generation burnin seems to be ok 
+	community.rescheduleScriptBlock(s0, start=10*N, end=10*N);
+}
+
+// MUTATION CALLBACK VERSION OF SELCOEFF 
+// It first draws values of 1 - 2Ns
+// It has a cap on Ns >= -100000.0
+// It then re-scale 2Ns to s by dividing by 2N
+// Then double it because we want a haploid model to match Wright Fisher 
+mutation(m2) {
+	muts_selCoeffs = mut.selectionCoeff;
+	for (i in 0:(size(muts_selCoeffs)-1))
+		// FOR LOGNORMAL
+		muts_selCoeffs[i] = max(-100001.0, 1 - rlnorm(1, param1, param2))/(p0.individualCount);
+	mut.setSelectionCoeff(muts_selCoeffs);
+	return T;
+}
+
+// SAMPLING BLOCK
+s0 999999 late(){
+	m1fsfs = fsfs(p0, m1, n, F);
+	m2fsfs = fsfs(p0, m2, n, F);
+	//print(m1fsfs);
+	//print("\n");
+	//print(m2fsfs);
+	//print("\n");
+	
+	// Save FSFSs to a file:
+	writeSFS(m1fsfs, paste0("sfs_neutral_" + basename), outDir);
+	writeSFS(m2fsfs, paste0("sfs_selected_" + basename), outDir);
+	
+	sim.simulationFinished();
+}

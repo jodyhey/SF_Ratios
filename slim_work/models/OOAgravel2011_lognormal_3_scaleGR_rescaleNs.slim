@@ -1,0 +1,483 @@
+// usage: 
+// slim -s <SEED> -d simu=<sim number> -d MU=<MU RATE> -d R=<R RATE> \
+//      -d N=<POPSIZE> -d L=<CHR LENGTH> -d Ns=<NS> -d n=<SAMPLE SIZE> \
+//      -d intronL=<INTRON LENGTH> -d exonL=<EXON LENGTH> \
+//		  -d param1=<0> -d param2=<0> \
+//		  -d sf=<SCALING FACTOR> -d scaleGR=<bool T or F> -d rescaleSegNs=<bool T or F> \
+//      -d ourDir=<OUTPUT DIR>  models/OOAgravel2011_lognormal.slim
+
+//NEED TO PARSE SCALED N, MU AND R INTO COMMAND LINE FUNCTION 
+
+// set up a simple neutral simulation
+initialize() {
+	
+	// UPLOAD FUNCTIONS - THIS DOES NOT CHANGE
+	source("./slim_work/functions/slim_fun.eidos");
+	
+	// FOR DEBUGGING ONLY
+	//defineGlobal("seed", 123456);
+	//defineGlobal("simu", 1);
+	//defineGlobal("MU", 2.36e-8);
+	//defineGlobal("R", 1e-8);
+	//defineGlobal("L", 10000);
+	//defineGlobal("Ns", 0.0);
+	defineGlobal("intronL", 810); // at this point, it doesn't matter the size 
+	defineGlobal("exonL", 324);
+	//defineGlobal("n", 200);
+	//defineGlobal("outDir", "/Users/tur92196/Desktop/ooa_scaling_factor");
+	
+	// SCALING FACTOR
+	defineGlobal("sf", 10);
+	
+	// ORIGINAL INITIAL POPULATION SIZES
+	//defineGlobal("N", 1000); 							  				     // N is not used, just as a placeholder 	
+	defineGlobal("Na", asInteger(round(7310.370867595234)/sf));      // Ancestral African population of 7310 (p1)
+	defineGlobal("NAfr", asInteger(round(14474.54608753566)/sf));    // African population size after burn-in (p1)
+	defineGlobal("NEur1", asInteger(round(1861.288190027689)/sf));   // SPLIT Eurasians (p2) from Africans (p1)	
+	defineGlobal("NEAs", asInteger(round(553.8181989)/sf));          // SPLIT p2 into European (p2) and East Asian (p3) subpopulations
+	defineGlobal("NEur2",asInteger(round(1032.1046957333444)/sf));   // REDUCE Eurasian population size (p2)
+	
+	// ORIGINAL TIME INTERVALS BETWEEN EVENTS	
+	defineGlobal("d1", 3863);
+	defineGlobal("d2", 1116);
+	defineGlobal("d3", 940);
+	
+	// PARAMETERS FOR THE 2NS (NOT IN USE IN THE FIXED 2NS MODEL)
+	//defineGlobal("param1", 1.0);
+	//defineGlobal("param2", 1.0);
+	
+	// SCALE GROWTH RATE?
+	defineGlobal("scaleGR", T);
+	
+	defineGlobal("t1", (Na*10));
+	defineGlobal("t2", (t1 + asInteger(round(d1/sf))));
+	defineGlobal("t3", (t2 + asInteger(round(d2/sf))));
+	
+	// IF SCALE GR IS TRUE
+	if (scaleGR)
+	{
+		defineGlobal("t4", (t3 + asInteger(round(d3/sf))));
+		defineGlobal("gr_p2", (1 + 0.003784324268)^sf);
+		defineGlobal("gr_p3", (1 + 0.004780219543)^sf);
+	
+	} else {
+		defineGlobal("t4", (t3 + d3));
+		defineGlobal("gr_p2", (1 + 0.003784324268));
+		defineGlobal("gr_p3", (1 + 0.004780219543));
+	}
+	
+	defineGlobal("t5", (t4 + 1));
+	
+	print("t1:" + "\t" + t1);
+	print("t2:" + "\t" + t2);
+	print("t3:" + "\t" + t3);
+	print("t4:" + "\t" + t4);
+	print("t5:" + "\t" + t5);
+	
+	// RESCALE SEGREGATING MUTATION NS?
+	defineGlobal("rescaleSegNs", T);
+	
+	// FOR DEBUGGING
+	// Track pedigree
+	//initializeSLiMOptions(keepPedigrees=T);
+	
+	// Arguments are parsed from command line
+	//setSeed(seed);
+	defineGlobal("basename", paste0(simu + "_" + getSeed())); // This is for the simplified output file naming
+	
+	initializeMutationRate(MU * sf);
+	// neutral mutations	
+	initializeMutationType("m1", 0.5, "f", 0.0);
+	// non-neutral mutations in exons starts as neutral; s are modified by mutation()  	
+	initializeMutationType("m2", 0.5, "f", 0.0);
+	
+	// CONVERT TO SUBSTITUTIONS AS TRUE	
+	m1.convertToSubstitution = T;
+	m2.convertToSubstitution = T;
+	
+	// MULTIPLE MUTATIONS POLICY
+	// "s" for stacking (default in SLiM); "f" for first (others are discarted), "l" for last
+	m1.mutationStackPolicy = "f";
+	m2.mutationStackPolicy = "f";
+	
+	// INITIALIZE GENOME ELEMENTS
+	initializeGenomicElementType("g1", m1, 1);
+	initializeGenomicElementType("g2", m2, 1);
+	
+	//	Generates intron/exons pairs programatically
+	base=0;
+	while (base < L) {
+		
+		if ((L-1) - base < (intronL + exonL)){
+			
+			// Make one intron to fill the remaning gap  
+			initializeGenomicElement(g1, base, (base + ((L-1) - base)));
+		
+		}	else {
+			// Make one intron & exon pair   
+			initializeGenomicElement(g1, base, (base + intronL - 1));
+			
+			//exon_length = exonL;
+			initializeGenomicElement(g2, (base + intronL), (base + intronL + exonL - 1));
+		
+		}
+		
+		// Update base length
+		base = base + intronL + exonL;
+	}// end of while
+	
+	
+	// single recombination rate	
+	initializeRecombinationRate(R*sf);
+
+}
+
+// Create a population of size Na individuals
+1 early() /* create p1 */ {
+	sim.addSubpop("p1", Na);
+	
+	// Define the event blocks:
+	community.rescheduleScriptBlock(s0, start=t1, end=t1);
+	community.rescheduleScriptBlock(s1, start=1, end=t4);
+	community.rescheduleScriptBlock(s2, start=t2, end=t4);
+	community.rescheduleScriptBlock(s3, start=t3, end=t4);
+	
+	if (rescaleSegNs)
+	{
+		community.rescheduleScriptBlock(s4, start=t1, end=t1);
+		community.rescheduleScriptBlock(s5, start=t2, end=t3);
+		community.rescheduleScriptBlock(s6, start=t3, end=t3);
+		community.rescheduleScriptBlock(s7, start=t3, end=t3);
+		community.rescheduleScriptBlock(s11, start=(t3+1), end=t4);
+		community.rescheduleScriptBlock(s12, start=(t3+1), end=t4);
+	
+	} else {
+		
+		community.rescheduleScriptBlock(s4, start=999999, end=999999);
+		community.rescheduleScriptBlock(s5, start=999999, end=999999);
+		community.rescheduleScriptBlock(s6, start=999999, end=999999);
+		community.rescheduleScriptBlock(s7, start=999999, end=999999);
+		community.rescheduleScriptBlock(s11, start=999999, end=999999);
+		community.rescheduleScriptBlock(s12, start=999999, end=999999);
+	
+	}
+	
+	community.rescheduleScriptBlock(s8, start=t2, end=t2);
+	community.rescheduleScriptBlock(s9, start=t3, end=t3);
+	community.rescheduleScriptBlock(s10, start=t3, end=t4);
+	community.rescheduleScriptBlock(s13, start=t4, end=t4);
+	community.rescheduleScriptBlock(s14, start=t4, end=t4);
+	community.rescheduleScriptBlock(s15, start=t5, end=t5);
+	community.rescheduleScriptBlock(s16, start=t5, end=t5);
+
+}
+
+s0 999999 early() /* end burn-in */ {
+	p1.setSubpopulationSize(NAfr);
+}
+
+/***/
+/** **Selection:** */
+
+/// *New mutations*
+s1 999999 mutation(m2, p1) /* AFRICANS */ {
+	muts_selCoeffs = max(-1001.0, 1 - rlnorm(1, param1, param2))/(p1.individualCount);
+	mut.setSelectionCoeff(muts_selCoeffs);
+	return T;
+}
+
+s2 999999 mutation(m2, p2) /* EURASIANS/EUROPEANS */ {
+	muts_selCoeffs = max(-1001.0, 1 - rlnorm(1, param1, param2))/(p2.individualCount);
+	mut.setSelectionCoeff(muts_selCoeffs);
+	return T;
+}
+
+s3 999999 mutation(m2, p3) /* EAST ASIANS */ {
+	muts_selCoeffs = max(-1001.0, 1 - rlnorm(1, param1, param2))/(p3.individualCount);
+	mut.setSelectionCoeff(muts_selCoeffs);
+	return T;
+}
+
+/// *Old mutations*
+s4 999999 late() /* Africans */ {
+	rescalenss(p1, m2, Na, NAfr, t1);
+}
+
+s5 999999 mutationEffect(m2, p2) {
+	if (mut.subpopID == 1 & mut.originTick <= t2)
+	{
+		if (homozygous)
+			return 1.0 + ((mut.selectionCoeff*NAfr)/NEur1);
+		else
+			return 1.0 + mut.mutationType.dominanceCoeff * ((mut.selectionCoeff*NAfr)/NEur1);
+	} else
+	{
+		if (homozygous)
+			return 1.0 + mut.selectionCoeff;
+		else
+			return 1.0 + mut.mutationType.dominanceCoeff * mut.selectionCoeff;
+	
+	}
+}
+
+s6 999999 mutationEffect(m2, p2) {
+	if (mut.subpopID == 1 & mut.originTick <= t3)
+	{
+		if (homozygous)
+			return 1.0 + ((mut.selectionCoeff*NAfr)/NEur2);
+		else
+			return 1.0 + mut.mutationType.dominanceCoeff * ((mut.selectionCoeff*NAfr)/NEur2);
+	
+	} else if (mut.subpopID == 2 & mut.originTick <= t3)
+	{
+		if (homozygous)
+			return 1.0 + ((mut.selectionCoeff*NEur1)/NEur2);
+		else
+			return 1.0 + mut.mutationType.dominanceCoeff * ((mut.selectionCoeff*NEur1)/NEur2);
+	
+	} else
+	{
+		if (homozygous)
+			return 1.0 + mut.selectionCoeff;
+		else
+			return 1.0 + mut.mutationType.dominanceCoeff * mut.selectionCoeff;
+	
+	}
+}
+
+s7 999999 mutationEffect(m2, p3) {
+	if (mut.subpopID == 1 & mut.originTick <= t3)
+	{
+		if (homozygous)
+			return 1.0 + ((mut.selectionCoeff*NAfr)/NEAs);
+		else
+			return 1.0 + mut.mutationType.dominanceCoeff * ((mut.selectionCoeff*NAfr)/NEAs);
+	
+	} else if (mut.subpopID == 2 & mut.originTick <= t3)
+	{
+		if (homozygous)
+			return 1.0 + ((mut.selectionCoeff*NEur1)/NEAs);
+		else
+			return 1.0 + mut.mutationType.dominanceCoeff * ((mut.selectionCoeff*NEur1)/NEAs);
+	
+	} else
+	{
+		if (homozygous)
+			return 1.0 + mut.selectionCoeff;
+		else
+			return 1.0 + mut.mutationType.dominanceCoeff * mut.selectionCoeff;
+	
+	}
+}
+
+/***/
+/** **Demography:** */
+
+s8 999999 early() /* split p2 from p1 */ {
+	sim.addSubpopSplit("p2", NEur1, p1);
+	p1.setMigrationRates(c(p2), c(15.24422112e-5*sf));
+	p2.setMigrationRates(c(p1), c(15.24422112e-5*sf));
+}
+
+s9 999999 early() /* split p3 from p2 */ {
+	sim.addSubpopSplit("p3", NEAs, p2);
+	p2.setSubpopulationSize(NEur2);
+	
+	p1.setMigrationRates(c(p2, p3), c(2.54332678e-5*sf, 0.7770583877e-5*sf));
+	p2.setMigrationRates(c(p1, p3), c(2.54332678e-5*sf, 3.115817913e-5*sf));
+	p3.setMigrationRates(c(p1, p2), c(0.7770583877e-5*sf, 3.115817913e-5*sf));
+}
+
+s10 999999 early() /* exponential growth */ {
+	t = sim.cycle - t3;
+	
+	p2_size = asInteger(round((1032.1046957333444/sf) * (gr_p2)^t));
+	p3_size = asInteger(round((553.8181989/sf) * (gr_p3)^t));
+	
+	p2.setSubpopulationSize(p2_size);
+	p3.setSubpopulationSize(p3_size);
+	
+	// Save N values to use in the next event
+	p2.setValue("previous_NEur2", p2_size);
+	p3.setValue("previous_NEAs", p3_size);
+
+}
+
+s11 999999 mutationEffect(m2, p2) {
+	if (mut.subpopID == 1 & mut.originTick <= t2)
+	{
+		if (homozygous)
+			return 1.0 + ((mut.selectionCoeff*NAfr)/p2.individualCount);
+		else
+			return 1.0 + mut.mutationType.dominanceCoeff * ((mut.selectionCoeff*NAfr)/p2.individualCount);
+	} else if (mut.subpopID == 2 & mut.originTick <= t3)
+	{
+		if (homozygous)
+			return 1.0 + ((mut.selectionCoeff*NEur1)/p2.individualCount);
+		else
+			return 1.0 + mut.mutationType.dominanceCoeff * ((mut.selectionCoeff*NEur1)/p2.individualCount);
+	
+	} else if (mut.subpopID == 2 & mut.originTick >= t3 & mut.originTick < sim.cycle )
+	{
+		if (homozygous)
+			return 1.0 + ((mut.selectionCoeff*asInteger(p2.getValue('previous_NEur2')))/p2.individualCount);
+		else
+			return 1.0 + mut.mutationType.dominanceCoeff * ((mut.selectionCoeff*asInteger(p2.getValue('previous_NEur2')))/p2.individualCount);
+	
+	} else
+	{
+		if (homozygous)
+			return 1.0 + mut.selectionCoeff;
+		else
+			return 1.0 + mut.mutationType.dominanceCoeff * mut.selectionCoeff;
+	
+	}
+}
+
+s12 999999 mutationEffect(m2, p3) {
+	if (mut.subpopID == 1 & mut.originTick <= t2)
+	{
+		if (homozygous)
+			return 1.0 + ((mut.selectionCoeff*NAfr)/p3.individualCount);
+		else
+			return 1.0 + mut.mutationType.dominanceCoeff * ((mut.selectionCoeff*NAfr)/p3.individualCount);
+	
+	} else if (mut.subpopID == 2 & mut.originTick <= sim.cycle)
+	{
+		if (homozygous)
+			return 1.0 + ((mut.selectionCoeff*NEur1)/p3.individualCount);
+		else
+			return 1.0 + mut.mutationType.dominanceCoeff * ((mut.selectionCoeff*NEur1)/p3.individualCount);
+	
+	} else if (mut.subpopID == 3 & mut.originTick >= t3 & mut.originTick < sim.cycle )
+	{
+		if (homozygous)
+			return 1.0 + ((mut.selectionCoeff*asInteger(p3.getValue('previous_NEAs')))/p3.individualCount);
+		else
+			return 1.0 + mut.mutationType.dominanceCoeff * ((mut.selectionCoeff*asInteger(p3.getValue('previous_NEAs')))/p3.individualCount);
+	
+	} else
+	{
+		if (homozygous)
+			return 1.0 + mut.selectionCoeff;
+		else
+			return 1.0 + mut.mutationType.dominanceCoeff * mut.selectionCoeff;
+	
+	}
+}
+
+/***/
+/** **Final output:** */
+
+s13 999999 late(){
+	
+	Afr_size = p1.individualCount;
+	Eur_size = p2.individualCount;
+	EAs_size = p3.individualCount;
+	
+	print(Afr_size);
+	print(Eur_size);
+	print(EAs_size);
+	
+	sim.addSubpop("p4", (Afr_size + Eur_size + EAs_size));
+	pooled_size = p4.individualCount;
+	p4.setMigrationRates(c(p1,p2,p3), c(Afr_size/pooled_size, Eur_size/pooled_size, EAs_size/pooled_size));
+
+}
+
+s14 999999 late() {
+	
+	// FOLDED SFS
+	Afr_m1fsfs = fsfs(p1, m1, n, F);
+	Afr_m2fsfs = fsfs(p1, m2, n, F);
+	// Save FSFSs to a file:
+	writeSFS(Afr_m1fsfs, paste0("Afr_fsfs_neutral_" + basename), outDir);
+	writeSFS(Afr_m2fsfs, paste0("Afr_fsfs_selected_" + basename), outDir);
+	
+	Eur_m1fsfs = fsfs(p2, m1, n, F);
+	Eur_m2fsfs = fsfs(p2, m2, n, F);
+	// Save FSFSs to a file:
+	writeSFS(Eur_m1fsfs, paste0("Eur_fsfs_neutral_" + basename), outDir);
+	writeSFS(Eur_m2fsfs, paste0("Eur_fsfs_selected_" + basename), outDir);
+	
+	EAs_m1fsfs = fsfs(p3, m1, n, F);
+	EAs_m2fsfs = fsfs(p3, m2, n, F);
+	// Save FSFSs to a file:
+	writeSFS(EAs_m1fsfs, paste0("EAs_fsfs_neutral_" + basename), outDir);
+	writeSFS(EAs_m2fsfs, paste0("EAs_fsfs_selected_" + basename), outDir);
+	
+	
+	//// UFOLDED SFS
+	//Afr_m1usfs = usfs(p1, m1, n, F);
+	//Afr_m2usfs = usfs(p1, m2, n, F);
+	//// Save FSFSs to a file:
+	//writeSFS(Afr_m1usfs, paste0("Afr_usfs_neutral_" + basename), outDir);
+	//writeSFS(Afr_m2usfs, paste0("Afr_usfs_selected_" + basename), outDir);
+	//
+	//Eur_m1usfs = usfs(p2, m1, n, F);
+	//Eur_m2usfs = usfs(p2, m2, n, F);
+	//// Save FSFSs to a file:
+	//writeSFS(Eur_m1usfs, paste0("Eur_usfs_neutral_" + basename), outDir);
+	//writeSFS(Eur_m2usfs, paste0("Eur_usfs_selected_" + basename), outDir);
+	//
+	//EAs_m1usfs = usfs(p3, m1, n, F);
+	//EAs_m2usfs = usfs(p3, m2, n, F);
+	//// Save FSFSs to a file:
+	//writeSFS(EAs_m1usfs, paste0("EAs_usfs_neutral_" + basename), outDir);
+	//writeSFS(EAs_m2usfs, paste0("EAs_usfs_selected_" + basename), outDir);
+
+}
+
+s15 9999999 late() {
+	// remove the source subpopulations
+	p4.setMigrationRates(c(p1, p2, p3), c(0.0, 0.0, 0.0));
+	p1.setSubpopulationSize(0);
+	p2.setSubpopulationSize(0);
+	p3.setSubpopulationSize(0);
+}
+
+// SAMPLING BLOCK
+s16 999999 late(){
+	
+	// FOLDED SFS
+	m1fsfs = fsfs(p4, m1, n, F);
+	m2fsfs = fsfs(p4, m2, n, F);
+	// Save FSFSs to a file:
+	writeSFS(m1fsfs, paste0("fsfs_neutral_" + basename), outDir);
+	writeSFS(m2fsfs, paste0("fsfs_selected_" + basename), outDir);
+	
+	// UFOLDED SFS
+	//m1usfs = usfs(p4, m1, n, F);
+	//m2usfs = usfs(p4, m2, n, F);
+	// Save FSFSs to a file:
+	//writeSFS(m1usfs, paste0("usfs_neutral_" + basename), outDir);
+	//writeSFS(m2usfs, paste0("usfs_selected_" + basename), outDir);
+	
+	sim.simulationFinished();
+}
+
+// Function to add to slim_fun.eidos
+
+// Rescale old s
+function (void)rescalenss(o<Subpopulation>$ subPop, o<MutationType>$ mutType, i$ Nanc, i$ Ncurr, i$ Tref)
+{
+	pop_sel_muts = subPop.genomes.mutationsOfType(mutType);
+	seg_sel_muts = pop_sel_muts[pop_sel_muts.originTick <= Tref];
+	
+	if (size(seg_sel_muts) > 0){
+		seg_sel_muts_selcoeffs = seg_sel_muts.selectionCoeff;
+		
+		for (u in seqAlong(seg_sel_muts_selcoeffs)){
+			s_rescaled = (seg_sel_muts_selcoeffs[u]*Nanc)/Ncurr;
+			seg_sel_muts[u].setSelectionCoeff(s_rescaled);
+		} //loop	
+	} //if
+
+}
+
+// Calculate time for scaled exponential growth
+function (*)time_expgrowth(i$ Ninit, i$Nfinal, f$ param)
+{
+	time = log(Nfinal/Ninit)/log(1 + param);
+	return asInteger(round(time));
+}
