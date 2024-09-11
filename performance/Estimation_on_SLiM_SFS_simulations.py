@@ -3,23 +3,20 @@ runs an analysis of estimator bias and variance on simulations done by Simulate_
 
 For a range of true values of the selection coefficient g or of the density of g,  generate boxplots of estimates 
 
-usage: Estimation_on_SLiM_SFS_simulations.py [-h] [-c FIX_THETA_RATIO] [-b] [-d DENSITYOF2NS] -f
-                                             FOLDSTATUS [-i OPTIMIZETRIES] [-k NTRIALS]
-                                             [-l PLOTFILELABEL] [-m MAX2NS] -n NC [-s SEED] [-D]
-                                             [-O OUTPUT_DIR] -W SLIM_SFSS_DIR
+usage: Estimation_on_SLiM_SFS_simulations.py [-h] [-c FIX_THETA_RATIO] [-b] [-d DENSITYOF2NS] -f FOLDSTATUS
+                                             [-i OPTIMIZETRIES] [-k NTRIALS] [-l PLOTFILELABEL] [-m MAX2NS] -n NC
+                                             [-s SEED] [-D] [-O OUTPUT_DIR] -W SLIM_SFSS_DIR
 
 options:
   -h, --help          show this help message and exit
   -c FIX_THETA_RATIO  set the fixed value of thetaS/thetaN
   -b                  run the basinhopping optimizer after the regular optimizer
-  -d DENSITYOF2NS     gamma or lognormal, only if simulating a distribution of Ns, else single values of
-                      Ns are used
-  -f FOLDSTATUS       usage regarding folded or unfolded SFS distribution, 'isfolded', 'foldit' or
-                      'unfolded'
+  -d DENSITYOF2NS     gamma or lognormal, only if simulating a distribution of Ns, else single values of Ns are used
+  -f FOLDSTATUS       usage regarding folded or unfolded SFS distribution, 'isfolded', 'foldit' or 'unfolded'
   -i OPTIMIZETRIES    run the minimize optimizer # times, default is once
   -k NTRIALS          number of trials per parameter set
   -l PLOTFILELABEL    optional string for labelling plot file names
-  -m MAX2NS           optional setting for the maximum 2Ns
+  -m MAX2NS           maximum 2Ns, default = 1
   -n NC               # of sampled chromosomes i.e. 2*(# diploid individuals)
   -s SEED             random number seed (positive integer)
   -D                  debug
@@ -51,7 +48,7 @@ sys.path.append(parent_dir)
 # Add the directory containing utilities to sys.path
 sys.path.append(op.join(parent_dir,'./utilities'))
 import twoDboxplot 
-import PRF_Ratios_functions
+import SF_Ratios_functions
 
 # import warnings
 # warnings.filterwarnings("ignore")
@@ -65,7 +62,7 @@ np.seterr(divide='ignore', invalid='ignore')
 
 DEBUGMODE = False 
 JH_turn_off_options_for_release = True  # use this to turn off obscure options not for the release of this program. 
-
+JH_turn_off_options_for_release = False
 
 def makeSFScomparisonstring(headers,sfslist):
     slist = []
@@ -74,7 +71,7 @@ def makeSFScomparisonstring(headers,sfslist):
     k = len(sfslist)
     for i in range(n):
         if k ==6:
-            temp = ["{}".format(sfslist[0][i]),"{}".format(sfslist[1][i]),"{:.3g}".format(sfslist[2][i]),"{}".format(sfslist[3][i]),"{}".format(sfslist[4][i]),"{:.3g}".format(sfslist[5][i])]
+            temp = ["{}".format(sfslist[0][i]),"{}".format(sfslist[1][i]),"{:.3g}".format(float(sfslist[2][i])),"{}".format(sfslist[3][i]),"{}".format(sfslist[4][i]),"{:.3g}".format(float(sfslist[5][i]))]
         else:
             temp = ["{}".format(sfslist[j][i]) for j in range(k)]
         temp.insert(0,str(i))
@@ -313,11 +310,11 @@ def run(args):
     if use_misspec:
         misspecresults = []
     if use_theta_ratio:
-        func = PRF_Ratios_functions.NegL_SFSRATIO_estimate_thetaratio
-        argtuple = (nc,dofoldedlikelihood,use_misspec,densityof2Ns,fix_theta_ratio,fixedmax2Ns,False,False,False)
+        func = SF_Ratios_functions.NegL_SFSRATIO_estimate_thetaratio
+        basearglist = [nc,dofoldedlikelihood,use_misspec,densityof2Ns,fix_theta_ratio,fixedmax2Ns,False,False,False]
     else:
-        func = PRF_Ratios_functions.NegL_SFSRATIO_estimate_thetaS_thetaN
-        argtuple = (nc,dofoldedlikelihood,use_misspec,densityof2Ns,False,fixedmax2Ns,False,False,False)
+        func = SF_Ratios_functions.NegL_SFSRATIO_estimate_thetaS_thetaN
+        basearglist = [nc,dofoldedlikelihood,use_misspec,densityof2Ns,False,fixedmax2Ns,False,False,False]
 
     successntrialsperg = []
     for gi,g in enumerate(gvals):
@@ -346,39 +343,14 @@ def run(args):
             nsfs = nsfslists[gi][i]
             ssfs = ssfslists[gi][i]
             ratios = ratiolists[gi][i]
-
-            temp = list(argtuple)
-            temp.append(ratios)
-            arglist = tuple(temp)
             thetaNest = sum(nsfs)/sum([1/i for i in range(1,nc)]) # this should work whether or not the sfs is folded 
             thetaSest = sum(ssfs)/sum([1/i for i in range(1,nc)]) # this should work whether or not the sfs is folded 
+            thetaNspace = np.logspace(np.log10(thetaNest/math.sqrt(args.thetaNspacerange)), np.log10(thetaNest*math.sqrt(args.thetaNspacerange)), num=101) # used for likelihood calculation,  logspace integrates bettern than linspace
             thetaratioest = thetaSest/thetaNest
-            
-            # bounds = []
-            # startarray = []
-            # if use_theta_ratio:
-            #     if fix_theta_ratio is None:
-            #         bounds.append((thetaratioest/20,thetaratioest*20))
-            # else:
-            #     bounds += [(thetaNest/30,thetaNest*30),(thetaSest/30,thetaSest*30)]
-            #     # startarray += [thetaNest,thetaSest]
-            # if densityof2Ns == "fixed2Ns": #single 2Ns value 
-            #     bounds += [(min(-100,-abs(float(g[0]))*10),max(100,abs(float(g[0]))*10))]
-            # elif densityof2Ns == "lognormal":
-            #     bounds += [(-5,20),(0.00001,20)]
-            # elif densityof2Ns =="gamma":
-            #     bounds += [(0.00001,20),(0.00001,20)]
-            # elif densityof2Ns == "normal":
-            #     bounds += [(-20,20),(0.001,10)]
-            # elif densityof2Ns == "discrete3":
-            #     bounds += [(0,1),(0,1)]
-            # else:
-            #     print("error")
-            #     exit()
-            # if estimatemax2Ns:
-            #     bounds += [(-20.0,10.0)]
-            # if use_misspec:
-            #     bounds += [(0.0,0.25)] # max of 0.25
+            arglist = list(basearglist)
+            arglist.append(thetaNspace)
+            arglist.append(ratios)
+
             # do ntries optimzation attempts and pick the best one 
             ntries = args.optimizetries 
             bounds,startarrays = set_bounds_and_start_possibilities(args,thetaNest,thetaSest,ntries)
@@ -386,13 +358,10 @@ def run(args):
             rfunvals = []
             # print(bounds)
             for ii in range(ntries):
-                # boundsarray = [
-                #     (0.0 if bounds[i][0] == 0.0 else random.uniform(bounds[i][0],bounds[i][0] + 0.3*(bounds[i][1]-bounds[i][0])),
-                #         1.0 if bounds[i][1] == 1.0 else random.uniform(bounds[i][1] - 0.3*(bounds[i][1]-bounds[i][0]),bounds[i][1]) ) for i in range(len(bounds))]
-                # startarray = [(boundsarray[i][0] + boundsarray[i][1])/2.0 for i in range(len(boundsarray))]
-                # print(startarray)
                 startarray = startarrays[ii]
-                result = minimize(func,np.array(startarray),args=arglist,method=optimizemethod,bounds=bounds)                         
+                result = minimize(func,np.array(startarray),args=tuple(arglist),method=optimizemethod,bounds=bounds)             
+                # from scipy.optimize import OptimizeResult
+                # result = OptimizeResult(x=[2.1862,3.9806,0.43651],fun=-2.283,message = "debugging")            
                 rxvals.append(result)
                 rfunvals.append(-result.fun)
                 if DEBUGMODE:
@@ -419,7 +388,7 @@ def run(args):
             okrun = True
             if okrun:
                 successntrialsperg[gi] += 1
-                if densityof2Ns != "single2Ns":
+                if densityof2Ns != "fixed2Ns":
                     if use_theta_ratio:
                         if fix_theta_ratio: 
                             tempratio = fix_theta_ratio
@@ -462,9 +431,9 @@ def run(args):
                         elif use_misspec:
                             misspecresults[gi].append(result.x[-1])
                     if use_misspec:
-                        fitnsfs,fitssfs,fitratios =  PRF_Ratios_functions.simsfsratio(thetaNresults[gi][-1],thetaSresults[gi][-1],fixedmax2Ns,nc,args.maxi,dofoldedlikelihood,misspecresults[gi][-1],densityof2Ns,[ln1results[gi][-1],ln2results[gi][-1]],None,True,tempratio)
+                        fitnsfs,fitssfs,fitratios =  SF_Ratios_functions.simsfsratio(thetaNresults[gi][-1],thetaSresults[gi][-1],fixedmax2Ns,nc,args.maxi,dofoldedlikelihood,misspecresults[gi][-1],densityof2Ns,[ln1results[gi][-1],ln2results[gi][-1]],None,True,tempratio)
                     else:
-                        fitnsfs,fitssfs,fitratios =  PRF_Ratios_functions.simsfsratio(thetaNresults[gi][-1],thetaSresults[gi][-1],fixedmax2Ns,nc,args.maxi,dofoldedlikelihood,None,densityof2Ns,[ln1results[gi][-1],ln2results[gi][-1]],None,True,tempratio)
+                        fitnsfs,fitssfs,fitratios =  SF_Ratios_functions.simsfsratio(thetaNresults[gi][-1],thetaSresults[gi][-1],fixedmax2Ns,nc,args.maxi,dofoldedlikelihood,None,densityof2Ns,[ln1results[gi][-1],ln2results[gi][-1]],None,True,tempratio)
                 else:
                     if use_theta_ratio:
                         if fix_theta_ratio: 
@@ -478,18 +447,18 @@ def run(args):
                         thetaSresults[gi].append(tempratio*thetaNest)
                         if use_misspec:
                             misspecresults[gi].append(result.x[-1]) 
-                            fitnsfs,fitssfs,fitratios =  PRF_Ratios_functions.simsfsratio(thetaNresults[gi][-1],thetaSresults[gi][-1],fixedmax2Ns,nc,args.maxi,dofoldedlikelihood,misspecresults[gi][-1],densityof2Ns,[gresults[gi][-1]],None,True,tempratio)
+                            fitnsfs,fitssfs,fitratios =  SF_Ratios_functions.simsfsratio(thetaNresults[gi][-1],thetaSresults[gi][-1],fixedmax2Ns,nc,args.maxi,dofoldedlikelihood,misspecresults[gi][-1],densityof2Ns,[gresults[gi][-1]],None,True,tempratio)
                         else:
-                            fitnsfs,fitssfs,fitratios =  PRF_Ratios_functions.simsfsratio(thetaNresults[gi][-1],thetaSresults[gi][-1],fixedmax2Ns,nc,args.maxi,dofoldedlikelihood,None,densityof2Ns,[gresults[gi][-1]],None,True,tempratio)
+                            fitnsfs,fitssfs,fitratios =  SF_Ratios_functions.simsfsratio(thetaNresults[gi][-1],thetaSresults[gi][-1],fixedmax2Ns,nc,args.maxi,dofoldedlikelihood,None,densityof2Ns,[gresults[gi][-1]],None,True,tempratio)
                     else:
                         gresults[gi].append(result.x[2])
                         thetaNresults[gi].append(result.x[0])
                         thetaSresults[gi].append(result.x[1])
                         if use_misspec:
                             misspecresults[gi].append(result.x[-1]) 
-                            fitnsfs,fitssfs,fitratios =  PRF_Ratios_functions.simsfsratio(thetaNresults[gi][-1],thetaSresults[gi][-1],fixedmax2Ns,nc,args.maxi,dofoldedlikelihood,misspecresults[gi][-1],densityof2Ns,[gresults[gi][-1]],None,True,None)
+                            fitnsfs,fitssfs,fitratios =  SF_Ratios_functions.simsfsratio(thetaNresults[gi][-1],thetaSresults[gi][-1],fixedmax2Ns,nc,args.maxi,dofoldedlikelihood,misspecresults[gi][-1],densityof2Ns,[gresults[gi][-1]],None,True,None)
                         else:
-                            fitnsfs,fitssfs,fitratios =  PRF_Ratios_functions.simsfsratio(thetaNresults[gi][-1],thetaSresults[gi][-1],fixedmax2Ns,nc,args.maxi,dofoldedlikelihood,None,densityof2Ns,[gresults[gi][-1]],None,True,None)
+                            fitnsfs,fitssfs,fitratios =  SF_Ratios_functions.simsfsratio(thetaNresults[gi][-1],thetaSresults[gi][-1],fixedmax2Ns,nc,args.maxi,dofoldedlikelihood,None,densityof2Ns,[gresults[gi][-1]],None,True,None)
             SFScomparesultsstrings.append(makeSFScomparisonstring(SFScompareheaders,[nsfs,ssfs,ratios,fitnsfs,fitssfs,fitratios]))
             savedSFSS[gi].append(ssfs)
             savedSFSN[gi].append(nsfs)
@@ -665,12 +634,12 @@ def parsecommandline():
     parser.add_argument("-n",dest="nc",type = int, required=True,help="# of sampled chromosomes  i.e. 2*(# diploid individuals)  ")
     if JH_turn_off_options_for_release == False:
         parser.add_argument("-p",dest = "use_misspec",action="store_true",default = False,help="include a misspecification parameter (only for unfolded data)")
-    if JH_turn_off_options_for_release == False:
-        parser.add_argument("-q",dest="thetaS",type=float,default = None,help = "theta for selected sites")    
+        parser.add_argument("-a",dest="thetaNspacerange",default=100,type=int,help="optional setting for the range of thetaNspace, alternatives e.g. 25, 400")
+        parser.add_argument("-q",dest="thetaS",type=float,default = None,help = "theta for selected sites")   
     parser.add_argument("-s",dest="seed",type = int,help = " random number seed (positive integer)",default=1)
     if JH_turn_off_options_for_release == False:
         parser.add_argument("-t",dest="thetaN",type=float,default = None,help = "set theta for neutral sites, optional, if -t is not specified then thetaN and thetaS are given by -q")
-        parser.add_argument("-w",dest="use_theta_ratio",action="store_true",default=False,help="do not estimate both thetas, just the ratio")  
+        parser.add_argument("-w",dest="use_theta_ratio",action="store_false",default=True,help="do not estimate both thetas, just the ratio")  
     parser.add_argument("-D",dest="DEBUGMODE",action="store_true",default=False,help="debug")
     if JH_turn_off_options_for_release == False:
         parser.add_argument("-F", dest="csfsprefix",default = None,type = str, help="optional prefix for csfs filenames,  e.g. Afr, Eur or EAs")
@@ -687,11 +656,12 @@ def parsecommandline():
         args.use_theta_ratio = True 
         args.csfsprefix = None
         args.maxi = None
+        args.thetaNspacerange = 100
     
     if args.densityof2Ns != "fixed2Ns" and not (args.densityof2Ns in ['lognormal','gamma']):
         parser.error("-d term {} is not either 'lognormal' or 'gamma'".format(args.densityof2Ns))
-    if args.densityof2Ns== "fixed2Ns" and args.gdensitymax != 1.0:
-        parser.error("-x requires that a density function be specified (i.e. -d )")    
+    if args.densityof2Ns== "fixed2Ns" and args.max2Ns != 1.0:
+        parser.error("-m requires that a density function be specified (i.e. -d )")    
     if args.foldstatus not in ("isfolded","foldit","unfolded"):
         parser.error("-f {} is wrong,  this tag requires one of 'isfolded','foldit', or 'unfolded'".format(args.foldstatus))
     if args.use_misspec and args.foldstatus != "unfolded":

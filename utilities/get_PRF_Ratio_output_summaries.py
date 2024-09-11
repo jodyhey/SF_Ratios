@@ -10,6 +10,22 @@ import csv
 from datetime import datetime
 import sys
 import argparse
+import math
+
+
+def calcdistances(lines):
+    sumsq = 0.0
+    c = 0
+    for i,xrow in enumerate(lines):
+        if len(xrow) < 2:
+            break
+        c += 1
+        row = xrow.strip().split()
+        sumsq += pow(float(row[5]) -float(row[2]),2)
+    RMSE = math.sqrt(sumsq/c)
+    EucDis = math.sqrt(sumsq)
+    return EucDis,RMSE
+
 
 # Function to parse each .out file
 def parse_file(filepath,headers):
@@ -134,6 +150,12 @@ def parse_file(filepath,headers):
             data["Mode"] = line.split('\t')[1].strip() if '\t' in line else None
         tempcounter += 1  
         li += 1
+    try: # calculate euclidean distance and RMSE if oberved and expected values are in the file 
+        while "i\tDataN\t" not in lines[li]:
+            li += 1
+        data["EucDis"],data["RMSE"] = calcdistances(lines[li+2:])
+    except:
+        pass
     return [data[header] for header in headers]
 
 def run(args):
@@ -146,7 +168,7 @@ def run(args):
     headers = [
         "File","fileMtime","IntCheck","NonS/Syn", "numparams","FixQR", "Density", "SetMax2Ns", "FixMode0", "PMmode",
         "Lklhd","AIC", "Qratio","Qratio_CI", "p1","p1_CI", "p2","p2_CI","estMax2Ns","estMax2Ns_CI",
-        "pm0_mass","pm0_mass_CI","pm_mass","pm_mass_CI","pm_val","pm_val_CI","Mean", "Mode"
+        "pm0_mass","pm0_mass_CI","pm_mass","pm_mass_CI","pm_val","pm_val_CI","Mean", "Mode", "EucDis","RMSE"
         ]
     
     with open(output_path, 'w', newline='') as csvfile:

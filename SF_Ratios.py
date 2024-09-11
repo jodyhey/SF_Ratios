@@ -1,12 +1,12 @@
 """
-Program:  PRF_Ratio.py
+Program:  SF_Ratios.py
 Author: Jody Hey
 Description/Publication: 
 
 reads a file with SFSs 
 runs estimators
 
-usage: PRF_Ratios.py [-h] -a SFSFILENAME [-c FIX_THETA_RATIO] [-d DENSITYOF2NS] [-D] [-q THETANSPACERANGE] [-M MAXI] [-o] [-z] [--profile] [-e] -f FOLDSTATUS [-g]
+usage: SF_Ratios.py [-h] -a SFSFILENAME [-c FIX_THETA_RATIO] [-d DENSITYOF2NS] [-D] [-q THETANSPACERANGE] [-M MAXI] [-o] [-z] [--profile] [-e] -f FOLDSTATUS [-g]
                      [-i OPTIMIZETRIES] [-m FIXEDMAX2NS] [-p POPLABEL] [-r OUTDIR] [-w] [-y] [-x]
 
 options:
@@ -43,8 +43,8 @@ import random
 import time
 import argparse
 import sys
-import PRF_Ratios_functions_new
-# import PRF_Ratios_functions
+import SF_Ratios_functions
+
 
 from functools import lru_cache
 
@@ -141,30 +141,30 @@ def buildSFStable(args,paramdic,pm0tempval,pmmasstempval,pmvaltempval,X,headers,
     if args.densityof2Ns=="lognormal":
         params = (paramdic["mu"],paramdic["sigma"])
         if args.estimatemax2Ns:   
-            neusfs,selsfs,ratios = PRF_Ratios_functions_new.simsfsratio(paramdic["thetaN"],paramdic["thetaS"],paramdic["max2Ns"],nc ,None,args.dofolded,
+            neusfs,selsfs,ratios = SF_Ratios_functions.simsfsratio(paramdic["thetaN"],paramdic["thetaS"],paramdic["max2Ns"],nc ,None,args.dofolded,
                 tempmisspec,args.densityof2Ns,params,pm0tempval, True, tempthetaratio, pmmass = pmmasstempval,pmval = pmvaltempval)
         else:
-            neusfs,selsfs,ratios = PRF_Ratios_functions_new.simsfsratio(paramdic["thetaN"],paramdic["thetaS"],args.fixedmax2Ns,nc ,None,args.dofolded,
+            neusfs,selsfs,ratios = SF_Ratios_functions.simsfsratio(paramdic["thetaN"],paramdic["thetaS"],args.fixedmax2Ns,nc ,None,args.dofolded,
                 tempmisspec,args.densityof2Ns,params,pm0tempval, True, tempthetaratio, pmmass = pmmasstempval,pmval = pmvaltempval)
     elif args.densityof2Ns=='gamma':
         params = (paramdic["alpha"],paramdic["beta"])
         if args.estimatemax2Ns:
-            neusfs,selsfs,ratios = PRF_Ratios_functions_new.simsfsratio(paramdic["thetaN"],paramdic["thetaS"],paramdic["max2Ns"],nc ,None,args.dofolded,
+            neusfs,selsfs,ratios = SF_Ratios_functions.simsfsratio(paramdic["thetaN"],paramdic["thetaS"],paramdic["max2Ns"],nc ,None,args.dofolded,
                 tempmisspec,args.densityof2Ns,params, pm0tempval, True, tempthetaratio, pmmass = pmmasstempval,pmval = pmvaltempval)
         else:
-            neusfs,selsfs,ratios = PRF_Ratios_functions_new.simsfsratio(paramdic["thetaN"],paramdic["thetaS"],args.fixedmax2Ns,nc ,None,args.dofolded,
+            neusfs,selsfs,ratios = SF_Ratios_functions.simsfsratio(paramdic["thetaN"],paramdic["thetaS"],args.fixedmax2Ns,nc ,None,args.dofolded,
                 tempmisspec,args.densityof2Ns,params, pm0tempval, True, tempthetaratio, pmmass = pmmasstempval,pmval = pmvaltempval)
     elif args.densityof2Ns=="normal":
         params = (paramdic["mu"],paramdic["sigma"])
-        neusfs,selsfs,ratios = PRF_Ratios_functions_new.simsfsratio(paramdic["thetaN"],paramdic["thetaS"],None,nc ,None,args.dofolded,
+        neusfs,selsfs,ratios = SF_Ratios_functions.simsfsratio(paramdic["thetaN"],paramdic["thetaS"],None,nc ,None,args.dofolded,
             tempmisspec,args.densityof2Ns,params, pm0tempval, True, tempthetaratio, pmmass = pmmasstempval,pmval = pmvaltempval)
     elif args.densityof2Ns == "discrete3":
         params = (paramdic["p0"],paramdic["p1"])
-        neusfs,selsfs,ratios = PRF_Ratios_functions_new.simsfsratio(paramdic["thetaN"],paramdic["thetaS"],None,nc ,None,args.dofolded,
+        neusfs,selsfs,ratios = SF_Ratios_functions.simsfsratio(paramdic["thetaN"],paramdic["thetaS"],None,nc ,None,args.dofolded,
             tempmisspec,args.densityof2Ns,params, pm0tempval, True, tempthetaratio, pmmass = pmmasstempval,pmval = pmvaltempval)                
     else:  #args.densityof2Ns =="fixed2Ns"
         params = (paramdic["2Ns"],)
-        neusfs,selsfs,ratios = PRF_Ratios_functions_new.simsfsratio(paramdic["thetaN"],paramdic["thetaS"],None,nc ,None,args.dofolded,
+        neusfs,selsfs,ratios = SF_Ratios_functions.simsfsratio(paramdic["thetaN"],paramdic["thetaS"],None,nc ,None,args.dofolded,
             tempmisspec,args.densityof2Ns,params, pm0tempval, True, tempthetaratio, pmmass = pmmasstempval,pmval = pmvaltempval)
     if args.use_theta_ratio:
         X, headers = update_table(X, headers,[neusfs,selsfs,ratios], ["Fit*_N","Fit*_S","Fit_Ratio"])
@@ -369,14 +369,14 @@ def writeresults(args,numparams,thetaNest,paramlabels,resultlabels,resultformats
     pm0tempval = pmmasstempval = pmvaltempval = None
     densityof2Nsadjust = None
     if args.densityof2Ns == "lognormal":
-        expectation,mode,negsd,densityof2Nsadjust,xvals = PRF_Ratios_functions_new.getXrange(args.densityof2Ns,(paramdic['mu'],paramdic['sigma']),(paramdic['max2Ns'] if args.estimatemax2Ns else args.fixedmax2Ns))
+        expectation,mode,negsd,densityof2Nsadjust,xvals = SF_Ratios_functions.getXrange(args.densityof2Ns,(paramdic['mu'],paramdic['sigma']),(paramdic['max2Ns'] if args.estimatemax2Ns else args.fixedmax2Ns))
     elif args.densityof2Ns == "gamma" :
-        expectation,mode,negsd,densityof2Nsadjust,xvals = PRF_Ratios_functions_new.getXrange(args.densityof2Ns,(paramdic['alpha'],paramdic['beta']),(paramdic['max2Ns'] if args.estimatemax2Ns else args.fixedmax2Ns))
+        expectation,mode,negsd,densityof2Nsadjust,xvals = SF_Ratios_functions.getXrange(args.densityof2Ns,(paramdic['alpha'],paramdic['beta']),(paramdic['max2Ns'] if args.estimatemax2Ns else args.fixedmax2Ns))
     elif args.densityof2Ns == "discrete3":
         expectation = -(11/2)* (-1 + 92*paramdic['p0'] + paramdic['p1'])
         mode = np.nan
     elif args.densityof2Ns == "normal": 
-        expectation,mode,negsd,densityof2Nsadjust,xvals = PRF_Ratios_functions_new.getXrange(args.densityof2Ns,(paramdic['mu'],paramdic['sigma']),(paramdic['max2Ns'] if args.estimatemax2Ns else args.fixedmax2Ns))
+        expectation,mode,negsd,densityof2Nsadjust,xvals = SF_Ratios_functions.getXrange(args.densityof2Ns,(paramdic['mu'],paramdic['sigma']),(paramdic['max2Ns'] if args.estimatemax2Ns else args.fixedmax2Ns))
     else:
         expectation = mode = np.nan
     if args.estimate_pointmass0:
@@ -482,7 +482,7 @@ def run(args):
         debugoutfile = open(debugoutfilename,"w")
     outf = open(outfilename, "w")
 
-    outf.write("PRF-R.py results\n================\n")
+    outf.write("SF_Ratios.py results\n================\n")
     outf.write("Command line: " + args.commandstring + "\n")
     outf.write("Arguments:\n")
     for key, value in vars(args).items():
@@ -495,14 +495,14 @@ def run(args):
     headers = [] # Initialize the table headers
     X, headers = update_table(X, headers,[neusfs,selsfs,ratios], ["DataN","DataS","DataRatio"])
     resultlabels,resultformatstrs,paramlabels = makeresultformatstrings(args)    
-    # temp = PRF_Ratios_functions_new.NegL_SFSRATIO_estimate_thetaratio([1.3276,1.9209,1.7553,0,-0.061321],160,True,False,"lognormal",False,1,True,False,False,thetaNspace,ratios)
+    # temp = SF_Ratios_functions.NegL_SFSRATIO_estimate_thetaratio([1.3276,1.9209,1.7553,0,-0.061321],160,True,False,"lognormal",False,1,True,False,False,thetaNspace,ratios)
     #SET OPTIMIZATION FUNCTIONS AND TERMS
     boundsarray,startvals = set_bounds_and_start_possibilities(args,thetaNest,thetaSest,args.optimizetries)
     if args.use_theta_ratio:
-        func = PRF_Ratios_functions_new.NegL_SFSRATIO_estimate_thetaratio
+        func = SF_Ratios_functions.NegL_SFSRATIO_estimate_thetaratio
         arglist = (nc,args.dofolded,args.includemisspec,args.densityof2Ns,args.fix_theta_ratio,args.fixedmax2Ns,args.estimate_pointmass,args.estimate_pointmass0,args.fixmode0,thetaNspace,ratios)
     else:
-        func = PRF_Ratios_functions_new.NegL_SFSRATIO_estimate_thetaS_thetaN
+        func = SF_Ratios_functions.NegL_SFSRATIO_estimate_thetaS_thetaN
         arglist = (nc,args.dofolded,args.includemisspec,args.densityof2Ns,False,args.fixedmax2Ns,args.estimate_pointmass,args.estimate_pointmass0,args.fixmode0,ratios)     
     if miscDebug:
         arglist += (debugoutfile,)
@@ -585,7 +585,7 @@ def run(args):
     for i,row in enumerate(X):
         outf.write("{}\t".format(i) +"\t".join(row) + "\n")            
     #clear caches and write cache usage to
-    PRF_Ratios_functions_new.clear_cache(outf)
+    SF_Ratios_functions.clear_cache(outf)
     # WRITE THE TIME AND CLOSE
     endtime = time.time()
     total_seconds = endtime-starttime
@@ -689,7 +689,7 @@ if __name__ == '__main__':
         profiler.disable()
         
         # Write full program profile stats
-        prffilename = 'PRF_Ratios_stats_{}.prof'.format(args.poplabel)
+        prffilename = 'SF_Ratios_stats_{}.prof'.format(args.poplabel)
         with open(prffilename, 'w') as f:
             stats = pstats.Stats(profiler, stream=f)
             stats.sort_stats('cumulative')
@@ -697,10 +697,10 @@ if __name__ == '__main__':
         print("profile stats written too {}".format(prffilename))
         
         # Filter and write myptools profile stats
-        prffilename = 'PRF_Ratios_functions_stats_{}.prof'.format(args.poplabel)
+        prffilename = 'SF_Ratios_functions_stats_{}.prof'.format(args.poplabel)
         with open(prffilename, 'w') as f:
             stats = pstats.Stats(profiler, stream=f)
             stats.sort_stats('cumulative')
-            stats.print_stats('PRF_Ratios_functions')
-        print("PRF_Ratios_functions profile stats written too {}".format(prffilename))
+            stats.print_stats('SF_Ratios_functions')
+        print("SF_Ratios_functions profile stats written too {}".format(prffilename))
 
