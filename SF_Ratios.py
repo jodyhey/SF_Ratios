@@ -6,31 +6,25 @@ Description/Publication:
 reads a file with SFSs 
 runs estimators
 
-usage: SF_Ratios.py [-h] -a SFSFILENAME [-c FIX_THETA_RATIO] [-d DENSITYOF2NS] [-D] [-q THETANSPACERANGE] [-M MAXI] [-o] [-z] [--profile] [-w] [-e] -f FOLDSTATUS
-                    [-g] [-i OPTIMIZETRIES] [-m SETMAX2NS] [-p POPLABEL] [-t] [-r OUTDIR] [-y] [-x]
+usage: SF_Ratios.py [-h] -a SFSFILENAME [-c FIX_THETA_RATIO] [-d DENSITYOF2NS] [-e] -f FOLDSTATUS [-g] [-i OPTIMIZETRIES] [-m SETMAX2NS] [-p POPLABEL] [-t]
+                    [-r OUTDIR] [-y] [-x]
 
 options:
-  -h, --help           show this help message and exit
-  -a SFSFILENAME       Path for SFS file
-  -c FIX_THETA_RATIO   set the fixed value of thetaS/thetaN
-  -d DENSITYOF2NS      gamma, lognormal, normal, discrete3,fixed2Ns
-  -D                   turn on debug mode, only works if JH_turn_off_options_for_release == True
-  -q THETANSPACERANGE  optional setting for the range of thetaNspace, alternatives e.g. 25, 400
-  -M MAXI              optional setting for the maximum bin index to include in the calculations
-  -o                   fix the mode of 2Ns density at 0, only works for lognormal and gamma
-  -z                   include a proportion of the mass at zero in the density model, requires normal, lognormal or gamma
-  --profile            Enable profiling
-  -w                   estimate both thetas, not just the ratio
-  -e                   for unfolded, include a misspecification parameter
-  -f FOLDSTATUS        usage regarding folded or unfolded SFS distribution, 'isfolded', 'foldit' or 'unfolded'
-  -g                   turn on global optimzation using basinhopping (quite slow, sometimes improves things)
-  -i OPTIMIZETRIES     run the minimize optimizer # times
-  -m SETMAX2NS         optional setting for 2Ns maximum, use with -d lognormal or -d gamma
-  -p POPLABEL          a population name or other label for the output filename and for the chart
-  -t                   if -d lognormal or -d gamma, estimated the maximum
-  -r OUTDIR            results directory
-  -y                   include a proportion of the mass at some point in the density model, requires normal, lognormal or gamma
-  -x                   if true and output file already exists, the run is stopped, else a new numbered output file is made
+  -h, --help          show this help message and exit
+  -a SFSFILENAME      Path for SFS file
+  -c FIX_THETA_RATIO  set the fixed value of thetaS/thetaN
+  -d DENSITYOF2NS     gamma, lognormal, normal, fixed2Ns
+  -e                  for unfolded, include a misspecification parameter
+  -f FOLDSTATUS       usage regarding folded or unfolded SFS distribution, 'isfolded', 'foldit' or 'unfolded'
+  -g                  turn on global optimzation using basinhopping (quite slow, sometimes improves things)
+  -i OPTIMIZETRIES    run the minimize optimizer # times
+  -m SETMAX2NS        optional setting for 2Ns maximum, use with -d lognormal or -d gamma
+  -p POPLABEL         a population name or other label for the output filename and for the chart
+  -t                  if -d lognormal or -d gamma, estimated the maximum
+  -r OUTDIR           results directory
+  -y                  include a proportion of the mass at some point in the density model, requires normal, lognormal or gamma
+  -x                  if true and output file already exists, the run is stopped, else a new numbered output file is made
+  
 """
 import numpy as np
 from scipy.optimize import minimize,minimize_scalar,OptimizeResult
@@ -59,7 +53,7 @@ random.seed(1)
 np.random.seed(2) 
 
 JH_turn_off_options_for_release = True  # use this to turn off obscure options not for the release of this program. 
-JH_turn_off_options_for_release = False
+# JH_turn_off_options_for_release = False
 # to turn various things off when debugging, set to True by setting  JH_turn_off_options_for_release = False and -D on the command line
 miscDebug = False 
 
