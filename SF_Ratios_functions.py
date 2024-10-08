@@ -82,15 +82,14 @@ sqrt_2_pi = np.sqrt(2 * np.pi)
 sqrt_pi_div_2 = np.sqrt(np.pi/2)
 
 
-discrete3_xvals = np.concatenate([np.linspace(-1000,-2,20),np.linspace(-1,1,20),np.linspace(1.1,10,20)]) # only for discrete3 distribution 
-
 # constants for x values in 2Ns integration see getXrange()
+discrete3_xvals = np.concatenate([np.linspace(-1000,-5,20),np.linspace(-4.9,1-1e-20,20),np.linspace(1-1e-20,10,20)]) # only for discrete3 distribution 
 lowerbound_2Ns_integration = -100000 # exclude regions below this from integrations,  arbitrary but saves some time
 fillnegxvals=np.flip(-np.logspace(0,5, 100)) # -1 to -100000
 himodeintegraterange = np.logspace(-2,5,50)  # tried himodeintegraterange = np.logspace(-2,5,100)  but not much improvement
 minimum_2Ns_location = -10000 # the lowest value for the mode  or mean of a continuous distribution that will be considered,  lower than this an the likelihood just returns inf 
 
-
+#  replaced with coth_without1()
 # def coth(x):
 #     """
 #         save a bit of time for large values of x 
@@ -107,11 +106,12 @@ def coth_without1(x):
             coth(-x) = -coth(x)
             when abs(x) > 10,  coth(x)~ 1+2*exp(-2x)  
 
-        coth(x)  with the 1 term removed.  i.e. if x is positive 1 is subtracted,  if x is negative -1 is subtracted
-        when abs(x) > 10,  coth(x) is very near sign(x)*1 (i.e. 1 with the sign of x) however there is a component of coth(x) for abs(x) > 10 that is many decimals away that we need to have. 
+        returns coth(x)  with the 1 term removed.  i.e. if x is positive 1 is subtracted,  if x is negative -1 is subtracted
 
-        this is necessary for prf_selection_weight()  that has (coth(x) - 1)xH  terms in it where H is a hyp1f1 value 
-        e.g. if we just converged cothx-1 to 0   for x > 10,  then the hyp1f1 terms go away,  but it turns out they matter 
+        when abs(x) > 10,  coth(x) is very near sign(x)*1 (i.e. 1 with the sign of x) 
+        however there is a component of coth(x) for abs(x) > 10 that is many decimals away that we need to have. 
+        this is necessary for prf_selection_weight()  that has (coth(x) - 1) x H  terms in it where H is a hyp1f1 value 
+        e.g. if we just converged cothx-1 to 0   for x > 10,  then the hyp1f1 terms go away,  but it turns out to matter 
         
     """
     if abs(x) >= 300:
@@ -130,13 +130,20 @@ def coth_without1(x):
         else:
             return np.cosh(x)/np.sinh(x) + 1
 
-    
-# @lru_cache(maxsize=100000) # does not speed things up
+# turns out this does not speed things up
+# @lru_cache(maxsize=100000) 
 # def exp_cache(x):
 #     return math.exp(x) if -745 <= x <= 709 else mpmath.exp(x)
 
+#cached error function 
 @lru_cache(maxsize=100000) #helps a little bit with erf()
 def erf_cache(x):
+    """
+        absolute values above 6 just return 1 with the sing of the x 
+        else, try scipy
+        else try mpmath 
+
+    """
     if abs(x) >= 6:
         return math.copysign(1, x)
     else:
@@ -149,6 +156,9 @@ def erf_cache(x):
     
 @lru_cache(maxsize=5000000) # helps a lot,  e.g. factor of 2 or more for hyp1f1 
 def cached_hyp1f1(a, b, z):
+    """
+        try scipy then mpmath 
+    """
     # try:
     #     return scipy.special.hyp1f1(a, b, z)
     # except:
@@ -173,7 +183,6 @@ def clear_cache(outf):
     outf.write("\nCaching results:\n")
     cache_functions = {
         # "exp": exp_cache,
-        # "coth": coth,
         "coth": coth_without1,
         "erf": erf_cache,
         "hyp1f1": cached_hyp1f1
@@ -458,14 +467,6 @@ def getXrange(densityof2Ns,g,max2Ns,xpand = False):
         get the range of integration for the density of 2Ns, build an array with values either side of the mode 
         if xpand,  get more intervals for numerical integration 
     """
-    if xpand:
-        numSDs = 7
-        himodeR = np.logspace(-4,5,500)
-        lowmodenumint = 20
-    else:
-        numSDs = 5 
-        himodeR = himodeintegraterange
-        lowmodenumint = 8
     def prfdensity(xval,g):
         if densityof2Ns=="lognormal":   
             mean = g[0]
@@ -486,71 +487,93 @@ def getXrange(densityof2Ns,g,max2Ns,xpand = False):
             mean = g[0]
             std_dev = g[1]
             p = (1 / (std_dev * sqrt_2_pi)) * math.exp(-(1/2)*((xval- mean)/std_dev)**2)
+        elif densityof2Ns=="discrete3":
+            if xval < -1:
+                p=g[0]/999
+            elif xval<= 1:
+                p = g[1]/2
+            else:
+                p = (1-g[0] - g[1])/9
         return p
-    
 
-    if densityof2Ns=="normal":
-        mode = ex = g[0]
-        sd = g[1]
-    elif densityof2Ns == "lognormal":
-        stdev_squared = g[1]*g[1]
-        sd = math.sqrt((math.exp(stdev_squared) - 1) * math.exp(2*g[0] + stdev_squared))
-        ex =  -math.exp(g[0] + stdev_squared/2)
-        mode = -math.exp(g[0] - stdev_squared)
-        if max2Ns:
-            ex += max2Ns
-            mode += max2Ns         
+    if densityof2Ns != "discrete3":
+        if xpand:
+            numSDs = 7
+            himodeR = np.logspace(-4,5,500)
+            lowmodenumint = 20
+        else:
+            numSDs = 5 
+            himodeR = himodeintegraterange
+            lowmodenumint = 8
 
-    elif densityof2Ns == "gamma":
-        sd = math.sqrt(g[0]*g[1]*g[1])
-        ex = -g[0]*g[1]
-        mode = 0.0 if g[0] < 1 else -(g[0]-1)*g[1]
-        if max2Ns:
-            mode += max2Ns 
-            ex += max2Ns
+        if densityof2Ns=="normal":
+            mode = ex = g[0]
+            sd = g[1]
+        elif densityof2Ns == "lognormal":
+            stdev_squared = g[1]*g[1]
+            sd = math.sqrt((math.exp(stdev_squared) - 1) * math.exp(2*g[0] + stdev_squared))
+            ex =  -math.exp(g[0] + stdev_squared/2)
+            mode = -math.exp(g[0] - stdev_squared)
+            if max2Ns:
+                ex += max2Ns
+                mode += max2Ns         
 
-    #build an array of 2Ns values for integration
-    listofarrays = []    
-    # print("in getxrange ",ex,sd,mode)
-    if sd > 1000: # if variance is very large,  use a fixed log spaced array on both sides of the mode
-        temp = np.flip(mode - himodeR)
-        temp[0] = lowerbound_2Ns_integration # put lowerbound_2Ns_integration in there. it will get sorted later
-        listofarrays = [temp,np.array([mode]),mode + himodeR]
+        elif densityof2Ns == "gamma":
+            sd = math.sqrt(g[0]*g[1]*g[1])
+            ex = -g[0]*g[1]
+            mode = 0.0 if g[0] < 1 else -(g[0]-1)*g[1]
+            if max2Ns:
+                mode += max2Ns 
+                ex += max2Ns
+
+        #build an array of 2Ns values for integration
+        listofarrays = []    
+        # print("in getxrange ",ex,sd,mode)
+        if sd > 1000: # if variance is very large,  use a fixed log spaced array on both sides of the mode
+            temp = np.flip(mode - himodeR)
+            temp[0] = lowerbound_2Ns_integration # put lowerbound_2Ns_integration in there. it will get sorted later
+            listofarrays = [temp,np.array([mode]),mode + himodeR]
+        else:
+            #build using np.linspace over chunks of the range. The closer to mode, the more finely spaced
+            # range is from lowerbound_2Ns_integration to (max2Ns - 1e-8)
+            sd10 = min(10,sd/10)
+            sd100 = min(1,sd/100)
+            listofarrays = [np.linspace(mode-sd,mode-sd10,10),np.linspace(mode-sd10,mode-sd100,10),np.linspace(mode-sd100,mode,10),np.linspace(mode,mode+sd100,10),np.linspace(mode+sd100,mode+sd10,10),np.linspace(mode+sd10,mode+sd,10)]
+            for i in range(2,numSDs+1):
+                listofarrays.insert(0,np.linspace(mode-i*sd,mode-(i-1)*sd,lowmodenumint))
+                listofarrays.append(np.linspace(mode+(i-1)*sd,mode+ i*sd,lowmodenumint))
+        # Concatenate the arrays
+        xvals = np.concatenate(listofarrays)
+        # Sort the concatenated array
+        xvals = np.sort(xvals)
+        # Remove duplicates 
+        xvals = np.unique(xvals)
+        if densityof2Ns in ("lognormal","gamma"):
+            # Filter for values less than or equal to max2Ns
+            xvals = xvals[xvals <= max2Ns]
+            # Replace the highest value with max2Ns - 1e-8
+            upperlimitforintegration = max2Ns - 1e-8
+            if xvals[-1] >= upperlimitforintegration:  
+                xvals[-1] = upperlimitforintegration
+            else: # append upperlimitforintegration
+                xvals = np.append(xvals, upperlimitforintegration)
+        # remove any values less than lowerbound_2Ns_integration
+        xvals = xvals[xvals >= lowerbound_2Ns_integration]
+        # tack on log scaled negative values down to lowerbound_2Ns_integration
+        # only inlclude those less than xvals[0]*1.1
+        # the 1.1 factor is to avoid something being right next to xvals[0]
+        #scipy.integrate.simpson() seems to handle xvals arrays that are even in length
+        # compares well with np.trapz().   integrands closer to 1,  about the same speed 
+        if len(xvals) >= 10:
+            xvals = np.concatenate([fillnegxvals[fillnegxvals < (xvals[0]*1.1)], xvals])
+        else: 
+            xvals = np.concatenate([fillnegxvals, xvals[xvals > -1]])
     else:
-        #build using np.linspace over chunks of the range. The closer to mode, the more finely spaced
-        # range is from lowerbound_2Ns_integration to (max2Ns - 1e-8)
-        sd10 = min(10,sd/10)
-        sd100 = min(1,sd/100)
-        listofarrays = [np.linspace(mode-sd,mode-sd10,10),np.linspace(mode-sd10,mode-sd100,10),np.linspace(mode-sd100,mode,10),np.linspace(mode,mode+sd100,10),np.linspace(mode+sd100,mode+sd10,10),np.linspace(mode+sd10,mode+sd,10)]
-        for i in range(2,numSDs+1):
-            listofarrays.insert(0,np.linspace(mode-i*sd,mode-(i-1)*sd,lowmodenumint))
-            listofarrays.append(np.linspace(mode+(i-1)*sd,mode+ i*sd,lowmodenumint))
-    # Concatenate the arrays
-    xvals = np.concatenate(listofarrays)
-    # Sort the concatenated array
-    xvals = np.sort(xvals)
-    # Remove duplicates 
-    xvals = np.unique(xvals)
-    if densityof2Ns in ("lognormal","gamma"):
-        # Filter for values less than or equal to max2Ns
-        xvals = xvals[xvals <= max2Ns]
-        # Replace the highest value with max2Ns - 1e-8
-        upperlimitforintegration = max2Ns - 1e-8
-        if xvals[-1] >= upperlimitforintegration:  
-            xvals[-1] = upperlimitforintegration
-        else: # append upperlimitforintegration
-            xvals = np.append(xvals, upperlimitforintegration)
-    # remove any values less than lowerbound_2Ns_integration
-    xvals = xvals[xvals >= lowerbound_2Ns_integration]
-    # tack on log scaled negative values down to lowerbound_2Ns_integration
-    # only inlclude those less than xvals[0]*1.1
-    # the 1.1 factor is to avoid something being right next to xvals[0]
-    #scipy.integrate.simpson() seems to handle xvals arrays that are even in length
-    # compares well with np.trapz().   integrands closer to 1,  about the same speed 
-    if len(xvals) >= 10:
-        xvals = np.concatenate([fillnegxvals[fillnegxvals < (xvals[0]*1.1)], xvals])
-    else: 
-        xvals = np.concatenate([fillnegxvals, xvals[xvals > -1]])
+        xvals = discrete3_xvals
+        ex = -11*(-1 + 92*g[0] + g[1])/2
+        m2 = (-110*g[1]/3) + 37 + 333630*g[0]
+        sd = math.sqrt(m2 - ex*ex)
+        mode = np.nan
     density_values = np.array([prfdensity(x,g) for x in xvals])
     # densityadjust = scipy.integrate.simpson(density_values,x=xvals)
     densityadjust = np.trapz(density_values,xvals)
@@ -607,7 +630,7 @@ def integrate2Ns(densityof2Ns,max2Ns,g,nc,i,foldxterm,misspec,xvals,densityadjus
     intval = np.trapz(density_values,xvals)
     return intval
     
-def NegL_SFS_Theta_Ns(p,nc,dofolded,includemisspec,counts): 
+def NegL_SFS_Theta_Ns(p,nc,dofolded,includemisspec,maxi,counts): 
     """
         for fisher wright poisson random field model,  with with selection or without
         if p is a float,  then the only parameter is theta and there is no selection
@@ -639,7 +662,8 @@ def NegL_SFS_Theta_Ns(p,nc,dofolded,includemisspec,counts):
         return temp     
     assert(counts[0]==0)
     sum = 0
-    for i in range(1,len(counts)):
+    k = len(counts) if maxi in (None,False) else min(len(counts),maxi)
+    for i in range(1,k):
         # sum += L_SFS_Theta_Ns_bin_i(p,i,nc,dofolded,counts[i])
         sum += L_SFS_Theta_Ns_bin_i(i,counts[i])
     return -sum 
@@ -799,7 +823,8 @@ def NegL_SFSRATIO_estimate_thetaS_thetaN(p,nc,dofolded,includemisspec,densityof2
         unki += 1
     else:
         misspec = 0.0        
-    if densityof2Ns not in ("fixed2Ns","discrete3","fix2Ns0"):
+    # if densityof2Ns not in ("fixed2Ns","discrete3","fix2Ns0"):
+    if densityof2Ns not in ("fixed2Ns","fix2Ns0"):
         ex,mode,sd,densityadjust,g_xvals = getXrange(densityof2Ns,g,max2Ns)
         # if mode < minimum_2Ns_location or (mode - sd) < minimum_2Ns_location: # distribution is located way out in highly negative values,  
         #     return math.inf
@@ -815,7 +840,7 @@ def NegL_SFSRATIO_estimate_thetaS_thetaN(p,nc,dofolded,includemisspec,densityof2
             return math.inf
     return -sum   
 
-def NegL_SFSRATIO_estimate_thetaratio(p,nc,dofolded,includemisspec,densityof2Ns,fix_theta_ratio,max2Ns,usepm,usepm0,fix_mode_0,thetaNspace,zvals): 
+def NegL_SFSRATIO_estimate_thetaratio(p,nc,dofolded,includemisspec,densityof2Ns,fix_theta_ratio,max2Ns,usepm,usepm0,fix_mode_0,maxi,thetaNspace,zvals): 
     """
         returns the negative of the log of the likelihood for the ratio of two SFSs
         first parameter is the ratio of mutation rates
@@ -874,14 +899,14 @@ def NegL_SFSRATIO_estimate_thetaratio(p,nc,dofolded,includemisspec,densityof2Ns,
                 return -math.inf                
         else:
             try:
-                if densityof2Ns == "discrete3":
-                    ux = integrate2Ns(densityof2Ns,max2Ns,g,nc,i,foldxterm,misspec,discrete3_xvals,densityadjust)
-                else:
-                    ux = integrate2Ns(densityof2Ns,max2Ns,g,nc,i,foldxterm,misspec,g_xvals,densityadjust)
-                    if usepm0:
-                        ux = pm0*(nc /(i*(nc -i)) if foldxterm else 1/i ) + (1-pm0)*ux
-                    elif usepm:
-                        ux =  (1-pmass)*ux + pmass* prf_selection_weight(nc,i,pval,foldxterm,misspec)
+                # if densityof2Ns == "discrete3":
+                    # ux = integrate2Ns(densityof2Ns,max2Ns,g,nc,i,foldxterm,misspec,discrete3_xvals,densityadjust)
+                # else:
+                ux = integrate2Ns(densityof2Ns,max2Ns,g,nc,i,foldxterm,misspec,g_xvals,densityadjust)
+                if usepm0:
+                    ux = pm0*(nc /(i*(nc -i)) if foldxterm else 1/i ) + (1-pm0)*ux
+                elif usepm:
+                    ux =  (1-pmass)*ux + pmass* prf_selection_weight(nc,i,pval,foldxterm,misspec)
                 alpha = thetaratio*ux/(nc /(i*(nc -i)) if foldxterm else 1/i )
                 return intdeltalogprobratio(alpha,z,thetaNspace,nc,i,foldxterm)        
             except Exception as e:
@@ -941,13 +966,18 @@ def NegL_SFSRATIO_estimate_thetaratio(p,nc,dofolded,includemisspec,densityof2Ns,
         unki += 1
     else:
         misspec = 0.0        
-    if densityof2Ns in ("normal","lognormal","gamma"):
+    # if densityof2Ns in ("normal","lognormal","gamma"):
+    if densityof2Ns in ("normal","lognormal","gamma","discrete3"):
         ex,mode,sd,densityadjust,g_xvals = getXrange(densityof2Ns,g,max2Ns)
         # print(ex,mode,densityadjust)
         # if densityadjust < 0.95:
         #     ex,mode,sd,densityadjust,g_xvals = getXrange(densityof2Ns,g,max2Ns,xpand=True)
+    else:
+        densityadjust = 1.0
     sum = 0
-    for i in range(1,len(zvals)):
+    summaxi = maxi if maxi not in (None,False) else len(zvals)
+    # for i in range(1,len(zvals)):
+    for i in range(1,summaxi):
         foldxterm = dofolded and i < nc //2 # True if summing two bins, False if not 
         temp =  calc_bin_i(i,zvals[i])
         sum += temp
@@ -1059,11 +1089,12 @@ def simsfs_continuous_gdist(theta,max2Ns,nc,misspec,maxi,densityof2Ns, params,pm
     """
     sfs = [0]*nc 
     for i in range(1,nc):
-        if densityof2Ns in ("normal","lognormal","gamma"):
-            ex,mode,sd,densityadjust,g_xvals = getXrange(densityof2Ns,params,max2Ns)
-            sint = integrate2Ns(densityof2Ns,max2Ns,(params[0],params[1]),nc,i,False,misspec,g_xvals,densityadjust)
-        elif densityof2Ns=="discrete3":
-            sint = integrate2Ns(densityof2Ns,max2Ns,(params[0],params[1]),nc,i,False,misspec,discrete3_xvals,None)
+        ex,mode,sd,densityadjust,g_xvals = getXrange(densityof2Ns,params,max2Ns)
+        sint = integrate2Ns(densityof2Ns,max2Ns,(params[0],params[1]),nc,i,False,misspec,g_xvals,densityadjust)        
+        # if densityof2Ns in ("normal","lognormal","gamma"):
+
+        # elif densityof2Ns=="discrete3":
+        #     sint = integrate2Ns(densityof2Ns,max2Ns,(params[0],params[1]),nc,i,False,misspec,discrete3_xvals,None)
         
         if pm0 not in (False,None):
             sint = pm0/i + (1-pm0)*sint
@@ -1076,7 +1107,8 @@ def simsfs_continuous_gdist(theta,max2Ns,nc,misspec,maxi,densityof2Ns, params,pm
         else:
             sfs[i] = np.random.poisson(sfsexp)
 
-    sfsfolded = [0] + [sfs[j]+sfs[nc -j] for j in range(1,nc //2)] + [sfs[nc //2]]
+    # sfsfolded = [0] + [sfs[j]+sfs[nc -j] for j in range(1,nc //2)] + [sfs[nc //2]]
+    sfsfolded = [0] + ([sfs[i] + sfs[nc-i] for i in range(1,nc//2)] + [sfs[nc//2]] if nc % 2 == 0 else  [sfs[i] + sfs[nc-i] for i in range(1,1+nc//2)])
     if maxi:
         assert maxi < nc , "maxi setting is {} but nc  is {}".format(maxi,nc )
         sfs = sfs[:maxi+1]

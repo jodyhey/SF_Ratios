@@ -48,6 +48,7 @@ def parse_file(filepath,headers):
             break
         li += 1
     data["PMmode"]  = "FALSE"
+    data["nc"]  = "?"
     while len(lines[li]) > 2 :
         if "sfsfilename:" in lines[li]:
             data["File"] = op.split(filepath)[-1]
@@ -56,7 +57,7 @@ def parse_file(filepath,headers):
             data["FixQR"] = lines[li].split(":")[1].strip()
         if "densityof2Ns" in lines[li]:
             data["Density"] = lines[li].split(":")[1].strip()
-        if "max2Ns" in lines[li] and "estimatemax2Ns" not in lines[li]:
+        if "max2Ns" in lines[li] and "estimate" not in lines[li]:
             data["SetMax2Ns"] = lines[li].split(":")[1].strip()
         if "fixmode0" in lines[li]:
             data["FixMode0"] = lines[li].split(":")[1].strip()
@@ -70,6 +71,8 @@ def parse_file(filepath,headers):
                 data["PMmode"] = "PM_M_and_V"
         if "numparams" in lines[li]:
             data["numparams"] = int(lines[li].split(":")[1].strip())
+        if "nc:" in lines[li]:
+            data["nc"] = int(lines[li].split(":")[1].strip())
         li += 1
 
     while "trial\t" not in lines[li]:
@@ -166,11 +169,12 @@ def run(args):
 
     # Define the headers for the CSV file
     headers = [
-        "File","fileMtime","IntCheck","NonS/Syn", "numparams","FixQR", "Density", "SetMax2Ns", "FixMode0", "PMmode",
+        "File","fileMtime","IntCheck","NonS/Syn","nc", "numparams","FixQR", "Density", "SetMax2Ns", "FixMode0", "PMmode",
         "Lklhd","AIC", "Qratio","Qratio_CI", "p1","p1_CI", "p2","p2_CI","estMax2Ns","estMax2Ns_CI",
         "pm0_mass","pm0_mass_CI","pm_mass","pm_mass_CI","pm_val","pm_val_CI","Mean", "Mode", "EucDis","RMSE"
         ]
-    
+    if args.poplabel is not None:
+        headers.insert(0,"dataset")
     with open(output_path, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
         writer.writerow(headers)
@@ -178,6 +182,9 @@ def run(args):
             if filename.endswith('.out'):
                 filepath = os.path.join(ddir, filename)
                 row = parse_file(filepath,headers)
+                if args.poplabel is not None:
+                    # row.insert(0,args.poplabel)
+                    row[0] = args.poplabel
                 writer.writerow(row)
     print(f"Summary CSV file has been created at {output_path}.")
     return
@@ -187,6 +194,7 @@ def parsecommandline():
     parser = argparse.ArgumentParser()
     parser.add_argument("-d", dest="filedirectory",required=True,type = str, help="path to files")
     parser.add_argument("-f",dest="outfilename",required=True,type=str,help="outfilename")
+    parser.add_argument("-p",dest="poplabel",default = None,help="population/sample label")
     args  =  parser.parse_args(sys.argv[1:])  
     args.commandstring = " ".join(sys.argv[1:])
     return args

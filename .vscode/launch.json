@@ -1,73 +1,195 @@
 {
-    "version": "0.2.0",
-    "configurations": [
-      {
-        "name": "temp.py",
-        "type": "debugpy",
-        "request": "launch",
-        "program": "./temp.py",
-        "console": "integratedTerminal",
-        "cwd": "${workspaceFolder}"        
-      },      
-      {
-        "name": "debug SF_Ratios.py",
-        "type": "debugpy",
-        "request": "launch",
-        "program": "./SF_Ratios.py",
-        "console": "integratedTerminal",
-        "cwd": "${workspaceFolder}",
-        //"args": ["-a","/mnt/d/genemod/better_dNdS_models/popgen/prfratio/drosophila/ZI/paired/ZI_sfs_synonymous_paired_with_nonsynynous_downsampled_folded.txt","-r","/mnt/d/genemod/better_dNdS_models/popgen/prfratio/drosophila/7_1_2024_ZI/altthetaNspace","-p","ZI_debug","-w","-i","1","-f","isfolded","-d","lognormal","-m","1.0"]
-        "args": ["-g","-a","../prfratio/drosophila/ZI/paired/ZI_sfs_synonymous_paired_with_nonsynynous_downsampled_folded.txt","-r","../prfratio/drosophila/7_1_2024_ZI/nonsyn_over_syn","-p","ZI_nonsyn_over_syn_debugX","-w","-i","1","-f","isfolded","-d","normal"]
-        
-      },
-   
-      {
-        "name": "debug Simulate_SFS_with_SLiM.py",
-        "type": "debugpy",
-        "request": "launch",
-        "program": "./performance/Simulate_SFS_with_SLiM.py",
-        "console": "integratedTerminal",
-        "args": ["-r", "20", "-U", "2.5E-07", "-R", "2.5E-07", "-g", "-1", "-b", "temp", "-N", "1000", "-L", "10000", "-f", "-k", "400", "-n", "100", "-m", "constant_fixed"],
-        "cwd": "${workspaceFolder}/performance"
-      },
-      {
-        "name": "debug Estimation_on_SLiM_SFS_simulations_new.py",
-        "type": "debugpy",
-        "request": "launch",
-        "program": "./Estimation_on_SLiM_SFS_simulations_new.py",
-        "console": "integratedTerminal",
-        "args": ["-s", "1", "-l", "debugconstantfixed", "-f", "isfolded", "-k", "5", "-n", "200", "-W", "../../slimwork/constant_fixed"],
-        //"args":["-a","25","-s","1","-l","constant_lognormal_7_15_24_Nspace_100","-W","/mnt/d/genemod/better_dNdS_models/popgen/slimwork/constant_lognormal","-i","5","-k","20","-f","isfolded","-d","lognormal","-n","200","-O","/mnt/d/genemod/better_dNdS_models/popgen/prfratio/output/constant"],
-        "cwd": "${workspaceFolder}/performance"
-      },
-      {
-        "name": "debug Estimation_on_WrightFisher_PRF_simulations.py",
-        "type": "debugpy",
-        "request": "launch",
-        //"program": "./performance/Estimation_on_WrightFisher_PRF_simulations.py",
-        "program": "./Estimation_on_WrightFisher_PRF_simulations.py",
-        "console": "integratedTerminal",
-        //"args": ["-o", "LowQ", "-b", "-f", "-k", "500", "-n", "100", "-s", "1", "-p", "50", "-q", "50", "-y", "chi2"],
-        "args":["-o","debugHiQz","-b","-y","power","-f","-k","5","-n","100","-s","1","-p","500","-q","500"],
-        "cwd": "${workspaceFolder}/performance"
-      }
-      {
-        "name": "debug make_2Ns_distribution_plot.py",
-        "type": "debugpy",
-        "request": "launch",
-        "program": "./make_2Ns_distribution_plot.py",
-        "console": "integratedTerminal",
-        "args":["-f","../../prfratio/drosophila/5_5_2024_ZI/Syn_ZI_Qratio_normal_estimates.out","-p","Zambia"],
-        "cwd": "${workspaceFolder}/utilities"
-      }
-      {
-        "name": "debug get_PRF_Ratio_output_summaries.py",
-        "type": "debugpy",
-        "request": "launch",
-        "program": "./get_PRF_Ratio_output_summaries.py",
-        "console": "integratedTerminal",
-        "args":["-d","../../prfratio/drosophila/7_1_2024_ZI","-f","debugsummaries.txt"],
-        "cwd": "${workspaceFolder}/utilities"
-      }      
-    ]
-  }
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Python Debugger: temp.py",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "temp.py",
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "debug SFS_modifications.py",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "./utilities/SFS_modifications.py",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "args": [
+        "-y",
+        "-f",
+        "unfolded",
+        "-d",
+        "200",
+        "-i",
+        "/mnt/d/genemod/better_dNdS_models/popgen/Human/1KG/1kG-vep-single-conseq.txt",
+        "-o",
+        "/mnt/d/genemod/better_dNdS_models/popgen/Human/1KG/debug.txt"
+      ]
+    },
+    {
+      "name": "Fit_basic_PRF_estimate_theta_2Ns.py",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "./utilities/Fit_basic_PRF_estimate_theta_2Ns.py",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      //"args": ["-f","foldit","-a","/mnt/d/genemod/better_dNdS_models/popgen/Human/uk10k/SFSs/UK10K_vep_consequence_SFS_200.txt","-o","/mnt/d/genemod/better_dNdS_models/popgen/Human/uk10k/SFSs/basic_PRF_fit_n200.txt","-i","5"]
+      "args": [
+        "-m",
+        "10",
+        "-f",
+        "foldit",
+        "-a",
+        "/mnt/d/genemod/better_dNdS_models/popgen/Human/gnomad/SFSs/gnomad_vep_consequence_SFS_200.txt",
+        "-o",
+        "/mnt/d/genemod/better_dNdS_models/popgen/Human/gnomad/SFSs/gnomad_m10_basic_PRF_fit_n200.txt",
+        "-i",
+        "5"
+      ]
+    },
+    {
+      "name": "debug SF_Ratios.py",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "./SF_Ratios.py",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      //"args": ["-a","/mnt/d/genemod/better_dNdS_models/popgen/prfratio/drosophila/ZI/paired/ZI_sfs_synonymous_paired_with_nonsynynous_downsampled_folded.txt","-r","/mnt/d/genemod/better_dNdS_models/popgen/prfratio/drosophila/7_1_2024_ZI/altthetaNspace","-p","ZI_debug","-w","-i","1","-f","isfolded","-d","lognormal","-m","1.0"]
+      "args": ["-a","./misc_work/discrete3sim3a.txt","-f","isfolded","-i","1","-d","lognormal","-p","debug","-r","./misc_work/"]
+      // "args": [
+      //   "-D",
+      //   "-i",
+      //   "5",
+      //   "-r",
+      //   "/mnt/d/genemod/better_dNdS_models/popgen",
+      //   "-f",
+      //   "foldit",
+      //   "-a",
+      //   "/mnt/d/genemod/better_dNdS_models/popgen/Human/1KG/SF_Ratios_runs/1KG_vep_pick_panfilter_n200_intergenic_nonsyn.txt",
+      //   "-p",
+      //   "discrete3debug",
+      //   "-d",
+      //   "discrete3"
+      ]
+    },
+    {
+      "name": "debug Simulate_SFS_with_SLiM.py",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "./performance/Simulate_SFS_with_SLiM.py",
+      "console": "integratedTerminal",
+      "args": [
+        "-r",
+        "20",
+        "-U",
+        "2.5E-07",
+        "-R",
+        "2.5E-07",
+        "-g",
+        "-1",
+        "-b",
+        "temp",
+        "-N",
+        "1000",
+        "-L",
+        "10000",
+        "-f",
+        "-k",
+        "400",
+        "-n",
+        "100",
+        "-m",
+        "constant_fixed"
+      ],
+      "cwd": "${workspaceFolder}/performance"
+    },
+    {
+      "name": "debug Estimation_on_SLiM_SFS_simulations_new.py",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "./Estimation_on_SLiM_SFS_simulations_new.py",
+      "console": "integratedTerminal",
+      "args": [
+        "-s",
+        "1",
+        "-l",
+        "debugconstantfixed",
+        "-f",
+        "isfolded",
+        "-k",
+        "5",
+        "-n",
+        "200",
+        "-W",
+        "../../slimwork/constant_fixed"
+      ],
+      //"args":["-a","25","-s","1","-l","constant_lognormal_7_15_24_Nspace_100","-W","/mnt/d/genemod/better_dNdS_models/popgen/slimwork/constant_lognormal","-i","5","-k","20","-f","isfolded","-d","lognormal","-n","200","-O","/mnt/d/genemod/better_dNdS_models/popgen/prfratio/output/constant"],
+      "cwd": "${workspaceFolder}/performance"
+    },
+    {
+      "name": "debug Estimation_on_WrightFisher_PRF_simulations.py",
+      "type": "debugpy",
+      "request": "launch",
+      //"program": "./performance/Estimation_on_WrightFisher_PRF_simulations.py",
+      "program": "./Estimation_on_WrightFisher_PRF_simulations.py",
+      "console": "integratedTerminal",
+      //"args": ["-o", "LowQ", "-b", "-f", "-k", "500", "-n", "100", "-s", "1", "-p", "50", "-q", "50", "-y", "chi2"],
+      "args": [
+        "-o",
+        "debugHiQz",
+        "-b",
+        "-y",
+        "power",
+        "-f",
+        "-k",
+        "5",
+        "-n",
+        "100",
+        "-s",
+        "1",
+        "-p",
+        "500",
+        "-q",
+        "500"
+      ],
+      "cwd": "${workspaceFolder}/performance"
+    },
+    {
+      "name": "debug make_2Ns_distribution_plot.py",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "./make_2Ns_distribution_plot.py",
+      "console": "integratedTerminal",
+      "args": [
+        "-f",
+        "../../prfratio/drosophila/5_5_2024_ZI/Syn_ZI_Qratio_normal_estimates.out",
+        "-p",
+        "Zambia"
+      ],
+      "cwd": "${workspaceFolder}/utilities"
+    },
+    {
+      "name": "debug get_SF_Ratio_output_summaries.py",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "./get_SF_Ratio_output_summaries.py",
+      "console": "integratedTerminal",
+      // "args": [
+      //   "-d",
+      //   "../../prfratio/drosophila/7_1_2024_ZI",
+      //   "-f",
+      //   "debugsummaries.txt"
+      // ],
+      "args": [
+        "-d",
+        "../../Human/1KG/SF_Ratios_runs/",
+        "-f",
+        "summaries.txt",
+        "-p",
+        "1KG"
+      ],
+      "cwd": "${workspaceFolder}/utilities"
+    }
+  ]
+}
