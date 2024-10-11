@@ -1,14 +1,16 @@
 """
+Program:  SF_Ratios_functions.py
+Author: Jody Hey
+
     poisson random field SFS work 
     a module of various functions
 
     models:
-        fix2Ns0,fixed2Ns,normal,lognormal,gamma,discrete3 
+        fix2Ns0,fixed2Ns,normal,lognormal,gamma,uni3fixed, uni3float
 
     sfs lists:
         all sfs lists begin with 0 in position 0 
         there is no position for a count where all chromosomes have the allele (i.e. fixed in the sample)
-
 
     counting with k chromosomes
         with unfolded, there are k - 1 values  so n_unf = k-1
@@ -83,7 +85,9 @@ sqrt_pi_div_2 = np.sqrt(np.pi/2)
 
 
 # constants for x values in 2Ns integration see getXrange()
-discrete3_xvals = np.concatenate([np.linspace(-1000,-5,20),np.linspace(-4.9,1-1e-20,20),np.linspace(1-1e-20,10,20)]) # only for discrete3 distribution 
+discrete3lowerbound = -1000
+discrete3upperbound = 10
+discrete3_xvals = np.concatenate([np.linspace(discrete3lowerbound,-5,20),np.linspace(-4.9,-1 + 1e-3,10),np.linspace(-1,1 - 1e-3,20),np.linspace(1,discrete3upperbound,20)]) # only for uni3fixed distribution 
 lowerbound_2Ns_integration = -100000 # exclude regions below this from integrations,  arbitrary but saves some time
 fillnegxvals=np.flip(-np.logspace(0,5, 100)) # -1 to -100000
 himodeintegraterange = np.logspace(-2,5,50)  # tried himodeintegraterange = np.logspace(-2,5,100)  but not much improvement
@@ -346,51 +350,6 @@ def ratio_expectation(p,i,max2Ns,nc,dofolded,misspec,densityof2Ns):# not used in
     x = scipy.integrate.quad(ztimesprobratio,-10,peak*10,args=(alpha,beta, False)) # use interval of 0 to 10* the peak location 
     return x[0]
 
-# def prf_selection_weight_hold(nc, i, g, dofolded, misspec):
-#     """
-#         Poisson random field selection weight for g=2Ns for bin i  (folded or unfolded)
-#         this is the function you get when you integrate the product of two terms:
-#              (1) WF term for selection    (1 - E^(-2 2 N s(1 - q)))/((1 - E^(-2 2 N s)) q(1 - q))  
-#              (2) bionomial sampling formula for i copies,  given allele frequency q 
-#         over the range of allele frequencies 
-#         use cached hyp1f1 function
-#     """    
-#     if abs(g) < 1e-3:
-#         if dofolded:
-#             us = nc / (i * (nc - i))
-#         else:
-#             if misspec:
-#                 us = (1 - misspec) / i + misspec / (nc - i)
-#             else:
-#                 us = 1 / i
-#         return us
-
-#     tempc = coth(g)
-#     if tempc == 1.0: # coth function returns 1 whenever g > 15,  this approximation actually does not work when taking a product with the hyp1f1 terms, but we are pretty much only concerned with values of 2Ns below 10
-#         if dofolded:
-#             us = 2 * (nc / (i * (nc - i)))
-#         else:
-#             us = nc / (i * (nc - i))
-#         return us
-
-#     if dofolded:
-#         temph1 = cached_hyp1f1(i, nc, 2*g)
-#         temph2 = cached_hyp1f1(nc - i, nc, 2*g)
-#         temph = temph1 + temph2
-#         us = (nc / (2 * i * (nc - i))) * (2 + 2 * tempc - (tempc - 1) * temph)
-#         return us
-#     else:
-#         if misspec in (None, False, 0.0):
-#             temph = cached_hyp1f1(i, nc, 2*g)
-#             us = (nc / (2 * i * (nc - i))) * (1 + tempc - (tempc - 1) * temph)
-#             return us
-#         else:
-#             temph1 = cached_hyp1f1(i, nc, 2*g)
-#             temph2 = cached_hyp1f1(nc - i, nc, 2*g)
-#             temph = (1 - misspec) * temph1 + misspec * temph2
-#             us = (1 + tempc + (1 - tempc) * temph) * (nc / (2 * i * (nc - i)))
-#             return us
-
 
 def prf_selection_weight(nc, i, g, dofolded, misspec):
     """
@@ -412,20 +371,12 @@ def prf_selection_weight(nc, i, g, dofolded, misspec):
         return us
 
     tempc_without1 = coth_without1(g)  # coth(g) - 1 if g > 0 else coth(g) + 1 
-    # if tempc_minus1 == 1.0: # coth function returns 1 whenever g > 15,  this approximation actually does not work when taking a product with the hyp1f1 terms, but we are pretty much only concerned with values of 2Ns below 10
-    #     if dofolded:
-    #         us = 2 * (nc / (i * (nc - i)))
-    #     else:
-    #         us = nc / (i * (nc - i))
-    #     return us
 
     if dofolded:
         temph1 = cached_hyp1f1(i, nc, 2*g)
         temph2 = cached_hyp1f1(nc - i, nc, 2*g)
         temph = temph1 + temph2
-        # us = (nc / (2 * i * (nc - i))) * (2 + 2 * tempc - (tempc - 1) * temph)
         if g > 0:
-            # print(g,temph,tempc_without1)
             if tempc_without1 == 0 or temph == math.inf: # it seems that when temph is inf  tempc_without1 is very near 0 
                 us = (nc / (2 * i * (nc - i))) * 4 
             else:
@@ -438,7 +389,6 @@ def prf_selection_weight(nc, i, g, dofolded, misspec):
     else:
         if misspec in (None, False, 0.0):
             temph = cached_hyp1f1(i, nc, 2*g)
-            # us = (nc / (2 * i * (nc - i))) * (1 + tempc - (tempc - 1) * temph)
             if g > 0:
                 if tempc_without1 == 0 or temph == math.inf: # it seems that when temph is inf  tempc_without1 is very near 0 
                     us = (nc / (2 * i * (nc - i))) * 2                 
@@ -451,7 +401,6 @@ def prf_selection_weight(nc, i, g, dofolded, misspec):
             temph1 = cached_hyp1f1(i, nc, 2*g)
             temph2 = cached_hyp1f1(nc - i, nc, 2*g)
             temph = (1 - misspec) * temph1 + misspec * temph2
-            # us = (1 + tempc + (1 - tempc) * temph) * (nc / (2 * i * (nc - i)))
             if g > 0:
                 if tempc_without1 == 0 or temph == math.inf: # it seems that when temph is inf  tempc_without1 is very near 0 
                     us = (2) * (nc / (2 * i * (nc - i))) 
@@ -487,16 +436,36 @@ def getXrange(densityof2Ns,g,max2Ns,xpand = False):
             mean = g[0]
             std_dev = g[1]
             p = (1 / (std_dev * sqrt_2_pi)) * math.exp(-(1/2)*((xval- mean)/std_dev)**2)
-        elif densityof2Ns=="discrete3":
+        elif densityof2Ns=="uni3fixed":
             if xval < -1:
                 p=g[0]/999
             elif xval<= 1:
                 p = g[1]/2
             else:
                 p = (1-g[0] - g[1])/9
+        elif densityof2Ns=="uni3float":
+            """
+            g[0] - proportion of lowest bin
+            g[1] - proportion of middle bin
+            g[2] - upper cutoff for lowest bin
+            g[3] - upper cutoff for middle bin
+            (g[2] - discrete3lowerbound) = lower uniform divisor 
+            (g[3] - g[2]) = middle uniform divisor 
+            (discrete3upperbound - g[3]) = upper uniform divisor 
+
+            """
+            if xval < g[2]:
+                lower_divisor = (g[2] - discrete3lowerbound)
+                p=g[0]/lower_divisor
+            elif xval<= g[3]:
+                middle_divisor = (g[3] - g[2])
+                p = g[1]/middle_divisor
+            else:
+                upper_divisor = (discrete3upperbound - g[3])
+                p = (1-g[0] - g[1])/upper_divisor
         return p
 
-    if densityof2Ns != "discrete3":
+    if densityof2Ns not in ("uni3fixed","uni3float"):
         if xpand:
             numSDs = 7
             himodeR = np.logspace(-4,5,500)
@@ -522,6 +491,7 @@ def getXrange(densityof2Ns,g,max2Ns,xpand = False):
             sd = math.sqrt(g[0]*g[1]*g[1])
             ex = -g[0]*g[1]
             mode = 0.0 if g[0] < 1 else -(g[0]-1)*g[1]
+            # g[1]-g[0]*g[1]
             if max2Ns:
                 mode += max2Ns 
                 ex += max2Ns
@@ -568,18 +538,35 @@ def getXrange(densityof2Ns,g,max2Ns,xpand = False):
             xvals = np.concatenate([fillnegxvals[fillnegxvals < (xvals[0]*1.1)], xvals])
         else: 
             xvals = np.concatenate([fillnegxvals, xvals[xvals > -1]])
-    else:
+    elif densityof2Ns=="uni3fixed":
         xvals = discrete3_xvals
         ex = -11*(-1 + 92*g[0] + g[1])/2
         m2 = (-110*g[1]/3) + 37 + 333630*g[0]
         sd = math.sqrt(m2 - ex*ex)
         mode = np.nan
+    elif densityof2Ns=="uni3float":
+        xvals = np.concatenate([discrete3_xvals,[g[2],g[3]]])
+        # Sort the concatenated array
+        xvals = np.sort(xvals)
+        # Remove duplicates 
+        xvals = np.unique(xvals)
+        mean_density_values = np.array([x*prfdensity(x,g) for x in xvals])
+        ex = np.trapz(mean_density_values,xvals)
+        var_density_values = np.array([x*x*prfdensity(x,g) for x in xvals])
+        var = np.trapz(var_density_values,xvals)
+        # print(ex,var,var - ex*ex)
+        try:
+            sd = math.sqrt(var - ex*ex)
+        except:
+            sd = np.nan
+        mode = np.nan
+
     density_values = np.array([prfdensity(x,g) for x in xvals])
     # densityadjust = scipy.integrate.simpson(density_values,x=xvals)
     densityadjust = np.trapz(density_values,xvals)
     return ex,mode,sd,densityadjust,xvals
  
-def prfdensityfunction(g,densityadjust,nc ,i,arg1,arg2,max2Ns,densityof2Ns,foldxterm,misspec):
+def prfdensityfunction(g,densityadjust,nc ,i,args,max2Ns,densityof2Ns,foldxterm,misspec):
     """
     returns the product of poisson random field weight for a given level of selection (g) and a probability density for g 
     used for integrating over g 
@@ -587,46 +574,62 @@ def prfdensityfunction(g,densityadjust,nc ,i,arg1,arg2,max2Ns,densityof2Ns,foldx
     """
     us = prf_selection_weight(nc ,i,g,foldxterm,misspec)
     if densityof2Ns=="lognormal":   
-        mean = arg1
-        std_dev = arg2
+        mean = args[0]
+        std_dev = args[1]
         x = float(max2Ns-g)
         p = ((1 / (x * std_dev * sqrt_2_pi)) * np.exp(-(np.log(x)- mean)**2 / (2 * std_dev**2)))/densityadjust
         if p==0.0:
            p= float(mpmath.fmul(mpmath.fdiv(1, (x * std_dev * sqrt_2_pi)), mpmath.exp(-(np.log(x)- mean)**2 / (2 * std_dev**2))))/densityadjust
     elif densityof2Ns=="gamma":
-        alpha = arg1
-        beta = arg2
+        alpha = args[0]
+        beta = args[1]
         x = float(max2Ns-g)
         try:
             p = (((x**(alpha-1))*np.exp(-x / beta))/((beta**alpha)*math.gamma(alpha)))/densityadjust
         except:
             p = float((mpmath.power(x,alpha-1)*mpmath.exp(-x/beta)/(mpmath.power(beta,alpha)*mpmath.gamma(alpha)))/densityadjust)
     elif densityof2Ns=="normal": # shouldn't need densityadjust for normal
-        mu = arg1
-        std_dev= arg2
+        mu = args[0]
+        std_dev= args[1]
         p = np.exp((-1/2)* ((g-mu)/std_dev)**2)/(std_dev *sqrt_2_pi)
-    elif densityof2Ns=="discrete3":
+    elif densityof2Ns=="uni3fixed":
         if g < -1:
-            p=arg1/999
+            p=args[0]/999
         elif g<= 1:
-            p = arg2/2
+            p = args[1]/2
         else:
-            p = (1-arg1-arg2)/9
+            p = (1-args[0]-args[1])/9
+    elif densityof2Ns=="uni3float":
+            """
+            g[0] - proportion of lowest bin
+            g[1] - proportion of middle bin
+            g[2] - upper cutoff for lowest bin
+            g[3] - upper cutoff for middle bin
+            (g[2] - discrete3lowerbound) = lower uniform divisor 
+            (g[3] - g[2]) = middle uniform divisor 
+            (discrete3upperbound - g[3]) = upper uniform divisor 
+            """
+            if g < -args[2]:
+                lower_divisor = (args[2] - discrete3lowerbound)
+                p=args[0]/lower_divisor
+            elif g <= args[3]:
+                middle_divisor = (args[3] - args[2])
+                p = args[1]/middle_divisor
+            else:
+                upper_divisor = (discrete3upperbound - args[3])
+                p = (1-args[0] - args[1])/upper_divisor            
     pus = p*us
     if pus < 0.0 or np.isnan(p):
         return 0.0
     return pus
 
 
-
 def integrate2Ns(densityof2Ns,max2Ns,g,nc,i,foldxterm,misspec,xvals,densityadjust):
     """
         xvals is a numpy array 
     """
-    density_values = np.array([prfdensityfunction(x,densityadjust,nc ,i,g[0],g[1],max2Ns,densityof2Ns,foldxterm,misspec) for x in xvals])
+    density_values = np.array([prfdensityfunction(x,densityadjust,nc ,i,g,max2Ns,densityof2Ns,foldxterm,misspec) for x in xvals])
     # intval = scipy.integrate.simpson(density_values,x=xvals)
-    # if intval <= 0.0:
-    #     intval = np.trapz(density_values,xvals)
     intval = np.trapz(density_values,xvals)
     return intval
     
@@ -638,7 +641,6 @@ def NegL_SFS_Theta_Ns(p,nc,dofolded,includemisspec,maxi,counts):
         counts begins with a 0
         returns the negative of the log of the likelihood for a Fisher Wright sample 
     """
-    # def L_SFS_Theta_Ns_bin_i(p,i,nc,dofolded,count): 
     def L_SFS_Theta_Ns_bin_i(i,count): 
         if isinstance(p,(float, int)): # p is simply a theta value,  no g  
             theta = p
@@ -658,8 +660,8 @@ def NegL_SFS_Theta_Ns(p,nc,dofolded,includemisspec,maxi,counts):
             except Exception as e:
                 print("L_SFS_Theta_Ns_bin_i problem ",nc,i,g,us,theta,count)
                 exit()
-
         return temp     
+
     assert(counts[0]==0)
     sum = 0
     k = len(counts) if maxi in (None,False) else min(len(counts),maxi)
@@ -689,20 +691,20 @@ def NegL_SFS_ThetaS_densityNs(p,max2Ns,nc ,dofolded,includemisspec,densityof2Ns,
         sum += -us + math.log(us)*counts[i] - math.lgamma(counts[i]+1)        
     return -sum    
  
-def NegL_SFSRATIO_estimate_thetaS_thetaN(p,nc,dofolded,includemisspec,densityof2Ns,onetheta,max2Ns,usepm,usepm0,fix_mode_0,zvals): 
+def NegL_SFSRATIO_estimate_thetaS_thetaN(p,nc,dofolded,includemisspec,densityof2Ns,onetheta,max2Ns,estimate_pointmass,estimate_pointmass0,fix_mode_0,zvals): 
     """
         returns the negative of the log of the likelihood for the ratio of two SFSs
         estimates Theta values,  not their ratio
 
-        densityof2Ns in fix2Ns0,fixed2Ns,normal,lognormal,gamma,discrete3 
+        densityof2Ns in fix2Ns0,fixed2Ns,normal,lognormal,gamma,uni3fixed 
         onetheta in True, False
         max2Ns  is either None,  or a fixed max value 
-        usepm0 in True, False
+        estimate_pointmass0 in True, False
         fix_mode_0 in True, False 
 
 
         replaces:
-            def NegL_SFSRATIO_thetaS_thetaN_fixedNs(p,nc ,dofolded,zvals,nog,usepm0)
+            def NegL_SFSRATIO_thetaS_thetaN_fixedNs(p,nc ,dofolded,zvals,nog,estimate_pointmass0)
             def NegL_SFSRATIO_thetaS_thetaN_densityNs_max2Ns(p,max2Ns,nc ,maxi,dofolded,densityof2Ns,zvals)
             
         returns negative of likelihood using the probability of the ratio 
@@ -710,7 +712,7 @@ def NegL_SFSRATIO_estimate_thetaS_thetaN(p,nc,dofolded,includemisspec,densityof2
         thetaN,thetaS 1 if onetheta else 2 
         Ns terms    2 if densityNs is not fixed2Ns 1 
         max2Ns      1 if densityof2Ns is in ("lognormal","gamma") and max2Ns is None else 0 
-        pointmass0  1 if usepm0 else 0 
+        pointmass0  1 if estimate_pointmass0 else 0 
 
         handles fix_mode_0 i.e. setting max2Ns so the mode of the distribution is 0 
         handles dofolded 
@@ -726,9 +728,9 @@ def NegL_SFSRATIO_estimate_thetaS_thetaN(p,nc,dofolded,includemisspec,densityof2
                 else:
                     ux = thetaS*prf_selection_weight(nc,i,g,dofolded,misspec)
                     if densityof2Ns == "fixed2Ns":
-                        if usepm0:
+                        if estimate_pointmass0:
                             ux = pm0*(nc /(i*(nc -i)) if foldxterm else 1/i ) + (1-pm0)*ux
-                        elif usepm:
+                        elif estimate_pointmass:
                             ux = thetaS * pmass * prf_selection_weight(nc,i,pval,dofolded,misspec) +  (1-pmass)*ux
 
                     alpha = ux/uy
@@ -737,26 +739,22 @@ def NegL_SFSRATIO_estimate_thetaS_thetaN(p,nc,dofolded,includemisspec,densityof2
                 return logprobratio(alpha,beta,z)
             except Exception as e:
                 estr = ["NegL_SFSRATIO_estimate_thetaS_thetaN calc_bin_i math.inf error:".format(e)]
-                estr.append("vals: i {} p {}".format(i,p))
+                # estr.append("vals: i {} p {}".format(i,p))
+                estr.append("vals: i {} p {} density model {}".format(i,p,densityof2Ns ))
                 exc_type, exc_value, exc_traceback = sys.exc_info()
                 estr.append(f"Exception type: {exc_type}")
                 estr.append(f"Exception value: {exc_value}")
                 estr.append(f"Traceback: {exc_traceback}")	                
-                print("\n".join(estr))
+                # print("\n".join(estr))
                 write_to_errlog("\n".join(estr))
                 return -math.inf              
         else:
             try:
-                if densityof2Ns == "discrete3":
-                    # density_values = np.array([prfdensityfunction(x,None,nc ,i,g[0],g[1],None,densityof2Ns,foldxterm,misspec) for x in discrete3_xvals])
-                    # ux = thetaS*float(np.trapz(density_values,discrete3_xvals))
-                    ux = thetaS*integrate2Ns(densityof2Ns,max2Ns,g,nc,i,foldxterm,misspec,discrete3_xvals,densityadjust)
-                else:
-                    ux = thetaS*integrate2Ns(densityof2Ns,max2Ns,g,nc,i,foldxterm,misspec,g_xvals,densityadjust)
-                    if usepm0:
-                        ux = pm0*(nc /(i*(nc -i)) if foldxterm else 1/i ) + (1-pm0)*ux
-                    elif usepm:
-                        ux = thetaS * pmass * prf_selection_weight(nc,i,pval,dofolded,misspec) +  (1-pmass)*ux
+                ux = thetaS*integrate2Ns(densityof2Ns,max2Ns,g,nc,i,foldxterm,misspec,g_xvals,densityadjust)
+                if estimate_pointmass0:
+                    ux = pm0*(nc /(i*(nc -i)) if foldxterm else 1/i ) + (1-pm0)*ux
+                elif estimate_pointmass:
+                    ux = thetaS * pmass * prf_selection_weight(nc,i,pval,dofolded,misspec) +  (1-pmass)*ux
                 uy = thetaN*nc /(i*(nc -i)) if foldxterm else thetaN/i    
                 alpha = ux/uy
                 sigmay = math.sqrt(uy)
@@ -764,12 +762,13 @@ def NegL_SFSRATIO_estimate_thetaS_thetaN(p,nc,dofolded,includemisspec,densityof2
                 return logprobratio(alpha,beta,z)   
             except Exception as e:
                 estr = ["calc_bin_i math.inf error:".format(e)]
-                estr.append("vals: i {} p {}".format(i,p))
+                # estr.append("vals: i {} p {}".format(i,p))
+                estr.append("vals: i {} p {} density model {}".format(i,p,densityof2Ns ))
                 exc_type, exc_value, exc_traceback = sys.exc_info()
                 estr.append(f"Exception type: {exc_type}")
                 estr.append(f"Exception value: {exc_value}")
                 estr.append(f"Traceback: {exc_traceback}")	                
-                print("\n".join(estr))
+                # print("\n".join(estr))
                 write_to_errlog("\n".join(estr))
                 return -math.inf  
             
@@ -792,16 +791,16 @@ def NegL_SFSRATIO_estimate_thetaS_thetaN(p,nc,dofolded,includemisspec,densityof2
         g = 0
     else:
         g = (p[unki],p[unki+1])
-        if densityof2Ns=="discrete3":
+        if densityof2Ns=="uni3fixed":
             if ((0 < g[0] < 1) == False) or ((0 < g[1] < 1) == False) or ((g[0] + g[1]) >= 1):
                 return math.inf
         holdki = unki
         unki += 2
-    if usepm0:
+    if estimate_pointmass0:
         pm0 = p[unki]
         unki += 1
        
-    if usepm:
+    if estimate_pointmass:
         pmass = p[unki]
         pval = p[unki+1]
         unki += 2          
@@ -823,13 +822,9 @@ def NegL_SFSRATIO_estimate_thetaS_thetaN(p,nc,dofolded,includemisspec,densityof2
         unki += 1
     else:
         misspec = 0.0        
-    # if densityof2Ns not in ("fixed2Ns","discrete3","fix2Ns0"):
+    # if densityof2Ns not in ("fixed2Ns","uni3fixed","fix2Ns0"):
     if densityof2Ns not in ("fixed2Ns","fix2Ns0"):
         ex,mode,sd,densityadjust,g_xvals = getXrange(densityof2Ns,g,max2Ns)
-        # if mode < minimum_2Ns_location or (mode - sd) < minimum_2Ns_location: # distribution is located way out in highly negative values,  
-        #     return math.inf
-        # if densityadjust < 0.95:
-        #     ex,mode,sd,densityadjust,g_xvals = getXrange(densityof2Ns,g,max2Ns,xpand=True)
     sum = 0
     for i in range(1,len(zvals)):
         foldxterm = dofolded and i < nc //2 # True if summing two bins, False if not 
@@ -840,16 +835,16 @@ def NegL_SFSRATIO_estimate_thetaS_thetaN(p,nc,dofolded,includemisspec,densityof2
             return math.inf
     return -sum   
 
-def NegL_SFSRATIO_estimate_thetaratio(p,nc,dofolded,includemisspec,densityof2Ns,fix_theta_ratio,max2Ns,usepm,usepm0,fix_mode_0,maxi,thetaNspace,zvals): 
+def NegL_SFSRATIO_estimate_thetaratio(p,nc,dofolded,includemisspec,densityof2Ns,fix_theta_ratio,max2Ns,estimate_pointmass,estimate_pointmass0,fix_mode_0,maxi,thetaNspace,zvals): 
     """
         returns the negative of the log of the likelihood for the ratio of two SFSs
         first parameter is the ratio of mutation rates
         sidesteps the theta terms by integrating over thetaN in the probability of the ratio (i.e. calls intdeltalogprobratio())
 
-        densityof2Ns in fix2Ns0,fixed2Ns,normal,lognormal,gamma,discrete3 
+        densityof2Ns in fix2Ns0,fixed2Ns,normal,lognormal,gamma,uni3fixed 
         fixthetaratio is either None, or a fixed value for the ratio 
         max2Ns  is either None,  or a fixed max value 
-        usepm0 in True, False
+        estimate_pointmass0 in True, False
         fix_mode_0 in True, False 
 
         replaces:
@@ -862,7 +857,7 @@ def NegL_SFSRATIO_estimate_thetaratio(p,nc,dofolded,includemisspec,densityof2Ns,
         ratio       0 if fix_theta_ratio is not None else 1 
         Ns terms    2 if densityNs is not None else 1 
         max2Ns      1 if densityof2Ns is in ("lognormal","gamma") and max2Ns is None else 0 
-        pointmass0  1 if usepm0 else 0 
+        pointmass0  1 if estimate_pointmass0 else 0 
 
         handles fix_mode_0 i.e. setting max2Ns so the mode of the distribution is 0 
         handles dofolded 
@@ -877,49 +872,43 @@ def NegL_SFSRATIO_estimate_thetaratio(p,nc,dofolded,includemisspec,densityof2Ns,
                 else:
                     sint = prf_selection_weight(nc,i,g,foldxterm,misspec)
                     if densityof2Ns == "fixed2Ns":
-                        if usepm0:
+                        if estimate_pointmass0:
                             sint = pm0*(nc /(i*(nc -i)) if foldxterm else 1/i ) + (1-pm0)*sint
-                        elif usepm:
+                        elif estimate_pointmass:
                             sint = pmass*prf_selection_weight(nc,i,pval,foldxterm,misspec) + (1-pmass) * sint
 
                     alpha = thetaratio*sint/(nc /(i*(nc -i)) if foldxterm else 1/i )
-                # uy = thetaNspace * nc /(i*(nc -i)) if foldxterm else thetaNspace/i    
-                # deltavals = 1/np.sqrt(uy)
-                # return intdeltalogprobratio(alpha,z,deltavals)   
                 return intdeltalogprobratio(alpha,z,thetaNspace,nc,i,foldxterm)      
             except Exception as e:
                 estr = ["NegL_SFSRATIO_estimate_thetaratio calc_bin_i math.inf error:".format(e)]
-                estr.append("vals: i {} p {}".format(i,p))
+                estr.append("vals: i {} p {} density model {}".format(i,p,densityof2Ns ))
                 exc_type, exc_value, exc_traceback = sys.exc_info()
                 estr.append(f"Exception type: {exc_type}")
                 estr.append(f"Exception value: {exc_value}")
                 estr.append(f"Traceback: {exc_traceback}")	                
-                print("\n".join(estr))
+                # print("\n".join(estr))
                 write_to_errlog("\n".join(estr))
                 return -math.inf                
         else:
             try:
-                # if densityof2Ns == "discrete3":
-                    # ux = integrate2Ns(densityof2Ns,max2Ns,g,nc,i,foldxterm,misspec,discrete3_xvals,densityadjust)
-                # else:
                 ux = integrate2Ns(densityof2Ns,max2Ns,g,nc,i,foldxterm,misspec,g_xvals,densityadjust)
-                if usepm0:
+                if estimate_pointmass0:
                     ux = pm0*(nc /(i*(nc -i)) if foldxterm else 1/i ) + (1-pm0)*ux
-                elif usepm:
+                elif estimate_pointmass:
                     ux =  (1-pmass)*ux + pmass* prf_selection_weight(nc,i,pval,foldxterm,misspec)
                 alpha = thetaratio*ux/(nc /(i*(nc -i)) if foldxterm else 1/i )
                 return intdeltalogprobratio(alpha,z,thetaNspace,nc,i,foldxterm)        
             except Exception as e:
                 estr = ["NegL_SFSRATIO_estimate_thetaratio calc_bin_i math.inf error:".format(e)]
-                estr.append("vals: i {} p {}".format(i,p))
+                # estr.append("vals: i {} p {}".format(i,p))
+                estr.append("vals: i {} p {} density model {}".format(i,p,densityof2Ns ))
                 exc_type, exc_value, exc_traceback = sys.exc_info()
                 estr.append(f"Exception type: {exc_type}")
                 estr.append(f"Exception value: {exc_value}")
                 estr.append(f"Traceback: {exc_traceback}")	                
-                print("\n".join(estr))
+                # print("\n".join(estr))
                 write_to_errlog("\n".join(estr))
                 return -math.inf  
-    # p = [7.5858,10.0,4.2989,0.03835,-0.99699]
     if isinstance(p,(int,float)):
         p = [p]
     else:
@@ -936,15 +925,25 @@ def NegL_SFSRATIO_estimate_thetaratio(p,nc,dofolded,includemisspec,densityof2Ns,
     elif densityof2Ns  == "fix2Ns0":
         g = 0.0
     else:
-        g = (p[unki],p[unki+1])
-        if densityof2Ns=="discrete3":
+        if densityof2Ns=="uni3fixed":
+            g = (p[unki],p[unki+1])
             if ((0 < g[0] < 1) == False) or ((0 < g[1] < 1) == False) or ((g[0] + g[1]) >= 1):
                 return math.inf
-        unki += 2
-    if usepm0:
+            unki += 2
+        elif densityof2Ns=="uni3float":
+            g = (p[unki],p[unki+1],p[unki+2],p[unki+3])
+            if ((0 < g[0] < 1) == False) or ((0 < g[1] < 1) == False) or ((g[0] + g[1]) >= 1) or  not (discrete3lowerbound < g[2] < g[3] < discrete3upperbound):
+                return math.inf
+            unki += 4 
+        elif densityof2Ns in ("normal","gamma","lognormal"):
+            g = (p[unki],p[unki+1])
+            unki += 2 
+
+
+    if estimate_pointmass0:
         pm0 = p[unki]
         unki += 1
-    if usepm:
+    if estimate_pointmass:
         pmass = p[unki]
         pval = p[unki+1]
         unki += 2        
@@ -967,11 +966,8 @@ def NegL_SFSRATIO_estimate_thetaratio(p,nc,dofolded,includemisspec,densityof2Ns,
     else:
         misspec = 0.0        
     # if densityof2Ns in ("normal","lognormal","gamma"):
-    if densityof2Ns in ("normal","lognormal","gamma","discrete3"):
+    if densityof2Ns in ("normal","lognormal","gamma","uni3fixed","uni3float"):
         ex,mode,sd,densityadjust,g_xvals = getXrange(densityof2Ns,g,max2Ns)
-        # print(ex,mode,densityadjust)
-        # if densityadjust < 0.95:
-        #     ex,mode,sd,densityadjust,g_xvals = getXrange(densityof2Ns,g,max2Ns,xpand=True)
     else:
         densityadjust = 1.0
     sum = 0
@@ -1090,12 +1086,7 @@ def simsfs_continuous_gdist(theta,max2Ns,nc,misspec,maxi,densityof2Ns, params,pm
     sfs = [0]*nc 
     for i in range(1,nc):
         ex,mode,sd,densityadjust,g_xvals = getXrange(densityof2Ns,params,max2Ns)
-        sint = integrate2Ns(densityof2Ns,max2Ns,(params[0],params[1]),nc,i,False,misspec,g_xvals,densityadjust)        
-        # if densityof2Ns in ("normal","lognormal","gamma"):
-
-        # elif densityof2Ns=="discrete3":
-        #     sint = integrate2Ns(densityof2Ns,max2Ns,(params[0],params[1]),nc,i,False,misspec,discrete3_xvals,None)
-        
+        sint = integrate2Ns(densityof2Ns,max2Ns,tuple(params),nc,i,False,misspec,g_xvals,densityadjust)        
         if pm0 not in (False,None):
             sint = pm0/i + (1-pm0)*sint
         elif pmmass not in (False,None):
@@ -1107,7 +1098,6 @@ def simsfs_continuous_gdist(theta,max2Ns,nc,misspec,maxi,densityof2Ns, params,pm
         else:
             sfs[i] = np.random.poisson(sfsexp)
 
-    # sfsfolded = [0] + [sfs[j]+sfs[nc -j] for j in range(1,nc //2)] + [sfs[nc //2]]
     sfsfolded = [0] + ([sfs[i] + sfs[nc-i] for i in range(1,nc//2)] + [sfs[nc//2]] if nc % 2 == 0 else  [sfs[i] + sfs[nc-i] for i in range(1,1+nc//2)])
     if maxi:
         assert maxi < nc , "maxi setting is {} but nc  is {}".format(maxi,nc )
@@ -1125,7 +1115,6 @@ def simsfs(theta,g,nc , misspec,maxi, returnexpected):
         generates,  folded and unfolded for Fisher Wright under Poisson Random Field
         return folded and unfolded 
     """
-    # g = -10000
     if g==0:
         if misspec in (None,False, 0.0):
             sfsexp = [0]+[theta/i for i in range(1,nc )]
@@ -1146,7 +1135,6 @@ def simsfs(theta,g,nc , misspec,maxi, returnexpected):
             print(g)
             print(sfsexp)
             exit()
-    # sfsfolded = [0] + [sfs[j]+sfs[nc -j] for j in range(1,nc //2)] + [sfs[nc //2]]
     sfsfolded = [0] + ([sfs[i] + sfs[nc-i] for i in range(1,nc//2)] + [sfs[nc//2]] if nc % 2 == 0 else  [sfs[i] + sfs[nc-i] for i in range(1,1+nc//2)])
     if maxi:
         assert maxi < nc , "maxi setting is {} but nc  is {}".format(maxi,nc )
@@ -1173,9 +1161,10 @@ def simsfsratio(thetaN,thetaS,max2Ns,nc ,maxi,dofolded,misspec,densityof2Ns,para
 
     if thetaratio is not None:
         thetaS = thetaN*thetaratio
-    if densityof2Ns == "fixed2Ns":
+    if densityof2Ns == "fixed2Ns": 
         ssfs,ssfsfolded = simsfs(thetaS,params[0],nc ,misspec,maxi,returnexpected)
     else:
+        # ssfs,ssfsf = SRF.simsfs_continuous_gdist(theta,max2Ns,nc,None,None,densityof2Ns,g,None,False)
         ssfs,ssfsfolded = simsfs_continuous_gdist(thetaS,max2Ns,nc ,misspec,maxi,densityof2Ns,params,pm0,returnexpected,pmmass = pmmass,pmval = pmval)
     if dofolded:
         ratios = [math.inf if nsfsfolded[j] <= 0.0 else ssfsfolded[j]/nsfsfolded[j] for j in range(len(nsfsfolded))]
@@ -1183,6 +1172,3 @@ def simsfsratio(thetaN,thetaS,max2Ns,nc ,maxi,dofolded,misspec,densityof2Ns,para
     else:
         ratios = [math.inf if nsfs[j] <= 0.0 else ssfs[j]/nsfs[j] for j in range(len(nsfs))]
         return nsfs,ssfs,ratios
-
-
-

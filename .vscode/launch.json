@@ -2,10 +2,10 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Python Debugger: temp.py",
+      "name": "Python Debugger: simulate_WF_SFSs_for_SF_Ratios.py",
       "type": "debugpy",
       "request": "launch",
-      "program": "temp.py",
+      "program": "./utilities/simulate_WF_SFSs_for_SF_Ratios.py",
       "console": "integratedTerminal"
     },
     {
@@ -57,21 +57,17 @@
       "cwd": "${workspaceFolder}",
       //"args": ["-a","/mnt/d/genemod/better_dNdS_models/popgen/prfratio/drosophila/ZI/paired/ZI_sfs_synonymous_paired_with_nonsynynous_downsampled_folded.txt","-r","/mnt/d/genemod/better_dNdS_models/popgen/prfratio/drosophila/7_1_2024_ZI/altthetaNspace","-p","ZI_debug","-w","-i","1","-f","isfolded","-d","lognormal","-m","1.0"]
       "args": ["-a","./misc_work/discrete3sim3a.txt","-f","isfolded","-i","1","-d","lognormal","-p","debug","-r","./misc_work/"]
-      // "args": [
-      //   "-D",
-      //   "-i",
-      //   "5",
-      //   "-r",
-      //   "/mnt/d/genemod/better_dNdS_models/popgen",
-      //   "-f",
-      //   "foldit",
-      //   "-a",
-      //   "/mnt/d/genemod/better_dNdS_models/popgen/Human/1KG/SF_Ratios_runs/1KG_vep_pick_panfilter_n200_intergenic_nonsyn.txt",
-      //   "-p",
-      //   "discrete3debug",
-      //   "-d",
-      //   "discrete3"
-      ]
+    },
+    {
+      "name": "debug SF_Ratios_temp.py",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "./SF_Ratios_temp.py",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      //"args": ["-a","/mnt/d/genemod/better_dNdS_models/popgen/prfratio/drosophila/ZI/paired/ZI_sfs_synonymous_paired_with_nonsynynous_downsampled_folded.txt","-r","/mnt/d/genemod/better_dNdS_models/popgen/prfratio/drosophila/7_1_2024_ZI/altthetaNspace","-p","ZI_debug","-w","-i","1","-f","isfolded","-d","lognormal","-m","1.0"]
+      //"args": ["-a","./testbed/testbed_lognormal_data.txt","-f","unfolded","-m","1","-i","1","-d","lognormal","-p","debug","-r","./testbed/"]
+      "args": ["-a","./testbed/testbed_lognormal_pm_dataX.txt","-f","unfolded","-d","lognormal","-i","3","-m","1","-y","-r","debugx","-p","testlognormal_pm"]
     },
     {
       "name": "debug Simulate_SFS_with_SLiM.py",
