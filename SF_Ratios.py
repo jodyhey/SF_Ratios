@@ -15,10 +15,10 @@ models (-d) :
     lognormal : flipped lognormal distribution,  max set by -m  (e.g. 0 or 1), or estimated (-t)
     normal : regular gaussian 
 
-    model additions: -m (default=0, gamma, lognormal), -t (gamma, lognormal), -y (gamma, lognormal,normal) 
+    model additions: -m (default=0, gamma, lognormal), -t (gamma, lognormal), -y (gamma, lognormal,normal), (-z gamma, lognormal,normal,fixed2Ns) 
 
-usage: SF_Ratios_temp.py [-h] -a SFSFILENAME [-c FIX_THETA_RATIO] [-d DENSITYOF2NS] -f FOLDSTATUS [-g] [-i OPTIMIZETRIES] [-m SETMAX2NS] [-p POPLABEL] [-t]
-                         [-r OUTDIR] [-y] [-x]
+usage: SF_Ratios.py [-h] -a SFSFILENAME [-c FIX_THETA_RATIO] [-d DENSITYOF2NS] -f FOLDSTATUS [-g] [-i OPTIMIZETRIES] [-m SETMAX2NS] [-M MAXI] [-p POPLABEL] [-t]
+                    [-r OUTDIR] [-u] [-y] [-x] [-z]
 
 options:
   -h, --help          show this help message and exit
@@ -26,15 +26,17 @@ options:
   -c FIX_THETA_RATIO  set the fixed value of thetaS/thetaN
   -d DENSITYOF2NS     gamma, lognormal, normal, fixed2Ns
   -f FOLDSTATUS       usage regarding folded or unfolded SFS distribution, 'isfolded', 'foldit' or 'unfolded'
-  -g                  turn on global optimzation using basinhopping (quite slow, sometimes improves things)
-  -i OPTIMIZETRIES    run the minimize optimizer # times
+  -g                  turn on global optimzation using basinhopping (very slow, often finds better optimum)
+  -i OPTIMIZETRIES    run the regular scipy minimize optimizer # times, relatively fast but not as good as -u or -g
   -m SETMAX2NS        optional setting for 2Ns maximum, default = 0, use with -d lognormal or -d gamma
+  -M MAXI             the maximum bin index to include in the calculations, default=None
   -p POPLABEL         a population name or other label for the output filename and for the chart
   -t                  if -d lognormal or -d gamma, estimate the maximum 2Ns value
   -r OUTDIR           results directory
+  -u                  turn on global optimzation using dualannealing (slow, often finds better optimum)
   -y                  include a proportion of the mass at some point in the density model, requires normal, lognormal or gamma
   -x                  if true and output file already exists, the run is stopped, else a new numbered output file is made
-
+  -z                  include a proportion of the mass at zero in the density model
     
 deprecated models and options (accessible by setting ):
     uni3fixed : uniform in each of 3 intervals  ((-1000,-1),(-1,1),(1,10)), parameters are the proportions in the two left bins  (right bin is 1- sum of those proportions)
