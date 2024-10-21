@@ -45,7 +45,7 @@ deprecated models and options (accessible by setting ):
 """
 import numpy as np
 from scipy.optimize import minimize,minimize_scalar,OptimizeResult
-from scipy.optimize import basinhopping, brentq
+from scipy.optimize import basinhopping, brentq,dual_annealing
 from scipy.stats import chi2
 import os
 import os.path as op
@@ -54,7 +54,7 @@ import random
 import time
 import argparse
 import sys
-import SF_Ratios_functions_temp as SRF 
+import SF_Ratios_functions as SRF 
 from scipy.optimize import OptimizeWarning
 import warnings
 warnings.filterwarnings("ignore", category=OptimizeWarning)
@@ -67,7 +67,7 @@ random.seed(1)
 np.random.seed(2) 
 
 deprecated_options_OFF = True # use this to turn off obscure options not for the release of this program. 
-# deprecated_options_OFF  = False
+# deprecated_options_OFF  = False # set to False to turn obscure options and debug 
 
 # to turn various things off or on when debugging, set to True by setting  deprecated_options_OFF  = False and -D on the command line
 miscDebug = False 
@@ -507,12 +507,12 @@ def run(args):
     args.nc = nc 
     args.datafileheader = datafileheader
     args.numparams = countparameters(args)
-    args.optimizemethod="Nelder-Mead" # this works better, more consistently than Powell
+    args.local_optimize_method="Nelder-Mead" # this works better, more consistently than Powell
 
     # START RESULTS FILE
     outfilename = buildoutpaths(args)
     outf = open(outfilename, "w") # write run info to outfile
-    outf.write("SF_Ratios.py   @Jody Hey 2024\n========================\n")
+    outf.write("SF_Ratios.py   @Jody Hey 2024\n=============================\n")
     outf.write("Command line: " + args.commandstring + "\n")
     outf.write("Arguments:\n")
     for key, value in vars(args).items():
@@ -532,29 +532,29 @@ def run(args):
         arglist = (nc,args.dofolded,args.includemisspec,args.densityof2Ns,args.fix_theta_ratio,args.setmax2Ns,args.estimate_pointmass,args.estimate_pointmass0,args.fixmode0,args.maxi,thetaNspace,ratios)
     else:
         func = SRF.NegL_SFSRATIO_estimate_thetaS_thetaN
-        arglist = (nc,args.dofolded,args.includemisspec,args.densityof2Ns,False,args.setmax2Ns,args.estimate_pointmass,args.estimate_pointmass0,args.fixmode0,ratios)     
+        arglist = (nc,args.dofolded,args.includemisspec,args.densityof2Ns,False,args.setmax2Ns,args.estimate_pointmass,args.estimate_pointmass0,args.maxi,args.fixmode0,ratios)     
 
     #RUN MINIMIZE TRIALS
     outf = open(outfilename, "a")
-    outf.write("trial\tlikelihood\t" + "\t".join(paramlabels) + "\n") # table header for basic optimization results 
+    outf.write("trial\tlikelihood\t" + "\t".join(paramlabels) + "\toptimizer_message\n") # table header for basic optimization results 
     for ii in range(args.optimizetries):
         if ii == 0:
             resvals = []
             rfunvals = []
         startarray = startvals[ii]
-        result = minimize(func,np.array(startarray),args=arglist,bounds = boundsarray,method=args.optimizemethod,options={"disp":False,"maxiter":1000*4})    
+        result = minimize(func,np.array(startarray),args=arglist,bounds = boundsarray,method=args.local_optimize_method,options={"disp":False,"maxiter":1000*4})    
         # result = OptimizeResult(x=[1.3276,0.3,0.3,-100,-5],fun=-1105,message = "debugging")
         resvals.append(result)
         rfunvals.append(-result.fun)
-        outf.write("{}\t{:.5g}\t{}\n".format(ii,-result.fun," ".join(f"{num:.5g}" for num in result.x)))
+        outf.write("{}\t{:.5g}\t{}\t{}\n".format(ii,-result.fun," ".join(f"{num:.5g}" for num in result.x),result.message))
     outf.close()
-
     if args.optimizetries > 0:
         besti = rfunvals.index(max(rfunvals))
         OPTresult = resvals[besti]
         OPTlikelihood = rfunvals[besti]
     else:
         OPTlikelihood = -np.inf
+        OPTresult = None
     #basinhopping
     if args.basinhoppingopt:
         if args.optimizetries>0:
@@ -563,22 +563,19 @@ def run(args):
             startarray = [(boundsarray[i][0] + boundsarray[i][1])/2.0 for i in range(len(boundsarray))]
         if miscDebug:
             # trying to catch a bug here   
-            print("basinhopping")
             for bi,b in enumerate(boundsarray):
                 if not (boundsarray[bi][0] < startarray[bi] < boundsarray[bi][1]):
-                    print("bounds problem: i:{} boundsarray[i]:{}  startarray[i]:{}".format(bi,boundsarray[bi],startarray[bi]))
+                    print("basinhopping bounds problem: i:{} boundsarray[i]:{}  startarray[i]:{}".format(bi,boundsarray[bi],startarray[bi]))
                     print(boundsarray)
                     print(startarray)
                     exit()
         try:
-            # args.optimizemethod="Powell"
             BHresult = basinhopping(func,np.array(startarray),T=10.0,
-                                    minimizer_kwargs={"method":args.optimizemethod,"bounds":boundsarray,"args":tuple(arglist)})
+                                    minimizer_kwargs={"method":args.local_optimize_method,"bounds":boundsarray,"args":tuple(arglist)})
             # BHresult = OptimizeResult(x=[7.5858,10.0,4.2989,0.03835,-0.99699],fun=-1279.792,message = "debugging")
-        # print("done",result.x)
             BHlikelihood = -BHresult.fun
             outf = open(outfilename, "a")
-            outf.write("BH\t{:.5g}\t{}\n".format(BHlikelihood," ".join(f"{num:.5g}" for num in BHresult.x)))
+            outf.write("BH\t{:.5g}\t{}\t{}\n".format(BHlikelihood," ".join(f"{num:.5g}" for num in BHresult.x),BHresult.message))
             outf.close()
         except Exception as e:
             BHlikelihood = -np.inf
@@ -587,36 +584,44 @@ def run(args):
             outf.close()
     else:
         BHlikelihood = -np.inf
-    # print(OPTlikelihood,BHlikelihood)
-    if BHlikelihood >= OPTlikelihood:
-        result = BHresult
-        likelihood = BHlikelihood
-        outstring = "Basinhopping"
-    elif OPTlikelihood > BHlikelihood:
-        result = OPTresult
-        likelihood = OPTlikelihood
-        outstring = "Optimize"
+        BHresult = None
+    #dualanneal
+    if args.dualannealopt:
+        try:
+            DAresult = dual_annealing(func, boundsarray, args=tuple(arglist))
+            DAlikelihood = -DAresult.fun
+            outf = open(outfilename, "a")
+            outf.write("DA\t{:.5g}\t{}\t{}\n".format(DAlikelihood," ".join(f"{num:.5g}" for num in DAresult.x),DAresult.message))
+            outf.close()
+        except Exception as e:
+            DAlikelihood = -np.inf
+            outf = open(outfilename, "a")
+            outf.write("\ndualannealing failed with message : {}\n".format(e))
+            outf.close()
     else:
-        print("problem comparing likelihoods")
-        exit()
+        DAlikelihood = -np.inf   
+        DAresult = None     
+    #pick the 
+    [likelihood,result,outstring]= sorted([[OPTlikelihood,OPTresult,"Optimize"],[BHlikelihood,BHresult,"Basinhopping"],[DAlikelihood,DAresult,"Dualannealing"]], key=lambda x: x[0] if x[0] != -np.inf else float('-inf'))[2]
+
     # print(result)        
     confidence_intervals = generate_confidence_intervals(func,list(result.x), arglist, likelihood,boundsarray)
-    pm0tempval,pmmasstempval,pmvaltempval,paramdic,expectation,mode = writeresults(args,args.numparams,thetaNest,paramlabels,resultlabels,resultformatstrs,result.x,likelihood,confidence_intervals,outfilename,"\nMaximized Likelihood and Parameter Estimates:\n\tresult.message: {}\n".format(outstring,result.message))
+    pm0tempval,pmmasstempval,pmvaltempval,paramdic,expectation,mode = writeresults(args,args.numparams,thetaNest,paramlabels,resultlabels,resultformatstrs,result.x,likelihood,confidence_intervals,outfilename,"\nMaximized Likelihood, AIC, Parameter Estimates, 95% Confidence Intervals:\n".format(outstring))
     X,headers = buildSFStable(args,paramdic,pm0tempval,pmmasstempval,pmvaltempval,X,headers,nc)
     EucDis, RMSE = calcdistances(X)
     # WRITE a TABLE OF DATA and RATIOS UNDER ESTIMATED MODELS        
     outf = open(outfilename, "a")
     outf.write("\nCompare data and optimization estimates\n\tEuclidean Distance: {:.4f} RMSE: {:.5f}\n".format(EucDis,RMSE))
     if args.estimate_both_thetas == False:
-        outf.write("\t*Expected counts generated with Wright-Fisher theta estimates (Poisson-Random-Field-Ratio does not provide theta estimates)\n")
-        outf.write("---------------------------------------------------------------------------------------------------------------------------\n") 
+        outf.write("\t*Expected counts generated with Wright-Fisher theta estimates (SF_Ratios does not provide theta estimates)\n")
+        outf.write("--------------------------------------------------------------------------------------------------------------\n") 
     else:
         outf.write("------------------------------------------------------------------------------------------\n") 
     outf.write("i\t" + "\t".join(headers) + "\n")
     for i,row in enumerate(X):
         outf.write("{}\t".format(i) +"\t".join(row) + "\n")            
     #clear caches and write cache usage to
-    SRF.clear_cache(outf)
+    SRF.clear_cache(outf = outf if miscDebug else False)
     # WRITE THE TIME AND CLOSE
     endtime = time.time()
     total_seconds = endtime-starttime
@@ -637,30 +642,31 @@ def parsecommandline():
         parser.add_argument("-e",dest="includemisspec",action="store_true",default=False,help=" for unfolded, include a misspecification parameter") 
         parser.add_argument("-D",dest ="debugmode",default = False,action="store_true", help = "turn on debug mode,  only works if deprecated_options_OFF  == True")
         parser.add_argument("-q",dest="thetaNspacerange",default=100,type=int,help="optional setting for the range of thetaNspace, alternatives e.g. 25, 400")
-        parser.add_argument("-M",dest="maxi",default=None,type=int,help="optional setting for the maximum bin index to include in the calculations")
         parser.add_argument("-o",dest="fixmode0",action="store_true",default=False,help="fix the mode of 2Ns density at 0, only works for lognormal and gamma")    
-        parser.add_argument("-z",dest="estimate_pointmass0",action="store_true",default=False,help="include a proportion of the mass at zero in the density model, requires normal, lognormal or gamma")    
+        # parser.add_argument("-z",dest="estimate_pointmass0",action="store_true",default=False,help="include a proportion of the mass at zero in the density model")    
         parser.add_argument('--profile', action='store_true', help="Enable profiling")    
         parser.add_argument("-w",dest="estimate_both_thetas",action="store_true",default=False,help="estimate both thetas, not just the ratio") 
     else:
         parser.add_argument("-d",dest="densityof2Ns",default = "fixed2Ns",type=str,help="gamma, lognormal, normal, fixed2Ns")
 
     parser.add_argument("-f",dest="foldstatus",required=True,help="usage regarding folded or unfolded SFS distribution, 'isfolded', 'foldit' or 'unfolded' ")    
-    parser.add_argument("-g",dest="basinhoppingopt",default=False,action="store_true",help=" turn on global optimzation using basinhopping (quite slow, sometimes improves things)") 
-    parser.add_argument("-i",dest="optimizetries",type=int,default=0,help="run the minimize optimizer # times")
+    parser.add_argument("-g",dest="basinhoppingopt",default=False,action="store_true",help=" turn on global optimzation using basinhopping (very slow, often finds better optimum)") 
+    parser.add_argument("-i",dest="optimizetries",type=int,default=0,help="run the regular scipy minimize optimizer # times, relatively fast but not as good as -u or -g")
     parser.add_argument("-m",dest="setmax2Ns",default=0,type=float,help="optional setting for 2Ns maximum, default = 0, use with -d lognormal or -d gamma")
+    parser.add_argument("-M",dest="maxi",default=None,type=int,help="the maximum bin index to include in the calculations, default=None")
     parser.add_argument("-p",dest="poplabel",default = "", type=str, help="a population name or other label for the output filename and for the chart")    
     parser.add_argument("-t",dest="estimatemax2Ns",default=False,action="store_true",help=" if  -d lognormal or -d gamma,  estimate the maximum 2Ns value") 
     parser.add_argument("-r",dest="outdir",default = "", type=str, help="results directory")    
+    parser.add_argument("-u",dest="dualannealopt",default=False,action="store_true",help=" turn on global optimzation using dualannealing (slow, often finds better optimum)") 
     parser.add_argument("-y",dest="estimate_pointmass",action="store_true",default=False,help="include a proportion of the mass at some point in the density model, requires normal, lognormal or gamma") 
     parser.add_argument("-x",dest="filecheck",action="store_true",default=False,help=" if true and output file already exists, the run is stopped, else a new numbered output file is made") 
+    parser.add_argument("-z",dest="estimate_pointmass0",action="store_true",default=False,help="include a proportion of the mass at zero in the density model")    
     args  =  parser.parse_args(sys.argv[1:])  
     args.commandstring = " ".join(sys.argv[1:])
 
     if deprecated_options_OFF  == True: # add the things not included in args by parser.parse_args() when this is set 
-        args.maxi = None
         args.fixmode0 = False
-        args.estimate_pointmass0 = False
+        # args.estimate_pointmass0 = False
         args.thetaNspacerange = 100
         args.profile = False
         args.estimate_both_thetas = False
@@ -698,8 +704,8 @@ def parsecommandline():
         parser.error(' cannot use -c fix_theta_ratio with -w estimate_both_thetas ')
     if args.foldstatus != "unfolded" and args.includemisspec == True:
         parser.error(' cannot include a misspecification term (-e) when SFS is not folded (-f)')
-    if args.optimizetries == 0 and args.basinhoppingopt == False:
-        parser.error(' either -i must be greater than 0, or -g  or both')
+    if args.optimizetries == 0 and args.basinhoppingopt == False and args.dualannealopt == False:
+        parser.error(' either -i must be greater than 0, or -g or -u or some combination of these')
     return args
 
 if __name__ == '__main__':
@@ -707,11 +713,10 @@ if __name__ == '__main__':
     args = parsecommandline()
     ## if --profile
     if args.profile:
-        import cProfile
+        import cProfile 
         import pstats
         import io
         from pstats import SortKey
-
         # Set up the profiler
         profiler = cProfile.Profile()
         profiler.enable()     

@@ -183,21 +183,25 @@ def cached_hyp1f1(a, b, z):
         return temp
 
 
-def clear_cache(outf):
-    outf.write("\nCaching results:\n")
+def clear_cache(outf = False):
     cache_functions = {
         # "exp": exp_cache,
         "coth": coth_without1,
         "erf": erf_cache,
         "hyp1f1": cached_hyp1f1
     }
-
     for name, func in cache_functions.items():
         try:
-            outf.write(f"{name} cache: {func.cache_info()}\n")
             func.cache_clear()
         except AttributeError:
-            pass  # Function doesn't have cache_info or cache_clear
+            pass  # Function doesn't have cache_info or cache_clear    
+    if outf:
+        outf.write("\nCaching results:\n")
+        for name, func in cache_functions.items():
+            try:
+                outf.write(f"{name} cache: {func.cache_info()}\n")
+            except AttributeError:
+                pass  # Function doesn't have cache_info or cache_clear
 
 
 def logprobratio(alpha,beta,z):  # called by NegL_SFSRATIO_estimate_thetaS_thetaN(),  not up to date as of 7/1/2024
@@ -691,7 +695,7 @@ def NegL_SFS_ThetaS_densityNs(p,max2Ns,nc ,dofolded,includemisspec,densityof2Ns,
         sum += -us + math.log(us)*counts[i] - math.lgamma(counts[i]+1)        
     return -sum    
  
-def NegL_SFSRATIO_estimate_thetaS_thetaN(p,nc,dofolded,includemisspec,densityof2Ns,onetheta,max2Ns,estimate_pointmass,estimate_pointmass0,fix_mode_0,zvals): 
+def NegL_SFSRATIO_estimate_thetaS_thetaN(p,nc,dofolded,includemisspec,densityof2Ns,onetheta,max2Ns,estimate_pointmass,estimate_pointmass0,maxi,fix_mode_0,zvals): 
     """
         returns the negative of the log of the likelihood for the ratio of two SFSs
         estimates Theta values,  not their ratio
@@ -729,7 +733,7 @@ def NegL_SFSRATIO_estimate_thetaS_thetaN(p,nc,dofolded,includemisspec,densityof2
                     ux = thetaS*prf_selection_weight(nc,i,g,dofolded,misspec)
                     if densityof2Ns == "fixed2Ns":
                         if estimate_pointmass0:
-                            ux = pm0*(nc /(i*(nc -i)) if foldxterm else 1/i ) + (1-pm0)*ux
+                            ux = thetaS*pm0*(nc /(i*(nc -i)) if foldxterm else 1/i ) + (1-pm0)*ux # mass at 0 times neutral weight + (1- mass at 0) times selection weight
                         elif estimate_pointmass:
                             ux = thetaS * pmass * prf_selection_weight(nc,i,pval,dofolded,misspec) +  (1-pmass)*ux
 
@@ -752,7 +756,7 @@ def NegL_SFSRATIO_estimate_thetaS_thetaN(p,nc,dofolded,includemisspec,densityof2
             try:
                 ux = thetaS*integrate2Ns(densityof2Ns,max2Ns,g,nc,i,foldxterm,misspec,g_xvals,densityadjust)
                 if estimate_pointmass0:
-                    ux = pm0*(nc /(i*(nc -i)) if foldxterm else 1/i ) + (1-pm0)*ux
+                    ux = thetaS*pm0*(nc /(i*(nc -i)) if foldxterm else 1/i ) + (1-pm0)*ux
                 elif estimate_pointmass:
                     ux = thetaS * pmass * prf_selection_weight(nc,i,pval,dofolded,misspec) +  (1-pmass)*ux
                 uy = thetaN*nc /(i*(nc -i)) if foldxterm else thetaN/i    
@@ -825,8 +829,11 @@ def NegL_SFSRATIO_estimate_thetaS_thetaN(p,nc,dofolded,includemisspec,densityof2
     # if densityof2Ns not in ("fixed2Ns","uni3fixed","fix2Ns0"):
     if densityof2Ns not in ("fixed2Ns","fix2Ns0"):
         ex,mode,sd,densityadjust,g_xvals = getXrange(densityof2Ns,g,max2Ns)
+
     sum = 0
-    for i in range(1,len(zvals)):
+    summaxi = maxi if maxi not in (None,False) else len(zvals)
+    # for i in range(1,len(zvals)):
+    for i in range(1,summaxi):
         foldxterm = dofolded and i < nc //2 # True if summing two bins, False if not 
         temp =  calc_bin_i(i,zvals[i])
         sum += temp
@@ -873,7 +880,7 @@ def NegL_SFSRATIO_estimate_thetaratio(p,nc,dofolded,includemisspec,densityof2Ns,
                     sint = prf_selection_weight(nc,i,g,foldxterm,misspec)
                     if densityof2Ns == "fixed2Ns":
                         if estimate_pointmass0:
-                            sint = pm0*(nc /(i*(nc -i)) if foldxterm else 1/i ) + (1-pm0)*sint
+                            sint = pm0*(nc /(i*(nc -i)) if foldxterm else 1/i ) + (1-pm0)*sint # mass at 0 times neutral weight + (1- mass at 0) times selection weight
                         elif estimate_pointmass:
                             sint = pmass*prf_selection_weight(nc,i,pval,foldxterm,misspec) + (1-pmass) * sint
 
@@ -893,7 +900,7 @@ def NegL_SFSRATIO_estimate_thetaratio(p,nc,dofolded,includemisspec,densityof2Ns,
             try:
                 ux = integrate2Ns(densityof2Ns,max2Ns,g,nc,i,foldxterm,misspec,g_xvals,densityadjust)
                 if estimate_pointmass0:
-                    ux = pm0*(nc /(i*(nc -i)) if foldxterm else 1/i ) + (1-pm0)*ux
+                    ux = pm0*(nc /(i*(nc -i)) if foldxterm else 1/i ) + (1-pm0)*ux # mass at 0 times neutral weight + (1- mass at 0) times selection weight
                 elif estimate_pointmass:
                     ux =  (1-pmass)*ux + pmass* prf_selection_weight(nc,i,pval,foldxterm,misspec)
                 alpha = thetaratio*ux/(nc /(i*(nc -i)) if foldxterm else 1/i )
@@ -1105,9 +1112,11 @@ def simsfs_continuous_gdist(theta,max2Ns,nc,misspec,maxi,densityof2Ns, params,pm
         sfsfolded = sfsfolded[:maxi+1]            
     return sfs,sfsfolded
 
-def simsfs(theta,g,nc , misspec,maxi, returnexpected):
+def simsfs(theta,g,nc , misspec,maxi, returnexpected,pm0=None,pmmass=None,pmval=None):
     """
         nc  is the # of sampled chromosomes 
+        pm0 is a point mass at 0
+        pmmass is a point mass at pmval 
 
         simulate the SFS under selection, assuming a PRF Wright-Fisher model 
         uses just a single value of g (2Ns), not a distribution
@@ -1115,6 +1124,7 @@ def simsfs(theta,g,nc , misspec,maxi, returnexpected):
         generates,  folded and unfolded for Fisher Wright under Poisson Random Field
         return folded and unfolded 
     """
+
     if g==0:
         if misspec in (None,False, 0.0):
             sfsexp = [0]+[theta/i for i in range(1,nc )]
@@ -1123,8 +1133,13 @@ def simsfs(theta,g,nc , misspec,maxi, returnexpected):
     else:
         sfsexp = [0]
         for i in range(1,nc ):
-            u = prf_selection_weight(nc ,i,g,False,misspec)
-            sfsexp.append(u*theta)    
+            ux = theta*prf_selection_weight(nc,i,g,False,misspec)
+            if isinstance(pm0,float):
+                ux = (theta* (pm0 /i)) + (1-pm0)*ux
+            elif isinstance(pmmass,float):
+                ux = theta * pmmass * prf_selection_weight(nc,i,pmval,False,misspec) +  (1-pmmass)*ux
+            sfsexp.append(ux)
+            # sfsexp.append(u*theta)    
     if returnexpected:
         sfs = sfsexp
     else:    
@@ -1162,7 +1177,7 @@ def simsfsratio(thetaN,thetaS,max2Ns,nc ,maxi,dofolded,misspec,densityof2Ns,para
     if thetaratio is not None:
         thetaS = thetaN*thetaratio
     if densityof2Ns == "fixed2Ns": 
-        ssfs,ssfsfolded = simsfs(thetaS,params[0],nc ,misspec,maxi,returnexpected)
+        ssfs,ssfsfolded = simsfs(thetaS,params[0],nc ,misspec,maxi,returnexpected,pm0=pm0,pmmass=pmmass,pmval=pmval)
     else:
         # ssfs,ssfsf = SRF.simsfs_continuous_gdist(theta,max2Ns,nc,None,None,densityof2Ns,g,None,False)
         ssfs,ssfsfolded = simsfs_continuous_gdist(thetaS,max2Ns,nc ,misspec,maxi,densityof2Ns,params,pm0,returnexpected,pmmass = pmmass,pmval = pmval)
@@ -1172,3 +1187,6 @@ def simsfsratio(thetaN,thetaS,max2Ns,nc ,maxi,dofolded,misspec,densityof2Ns,para
     else:
         ratios = [math.inf if nsfs[j] <= 0.0 else ssfs[j]/nsfs[j] for j in range(len(nsfs))]
         return nsfs,ssfs,ratios
+
+
+

@@ -12,7 +12,7 @@ import sys
 parent_dir = op.abspath(op.join(op.dirname(__file__), '..'))
 # Add the parent directory to sys.path
 sys.path.insert(0, parent_dir)
-import SF_Ratios_functions_temp as SRF
+import SF_Ratios_functions as SRF
 import numpy as np 
 
 
@@ -21,7 +21,7 @@ np.random.seed(2)
 
 densityof2Ns = "lognormal"
 # densityof2Ns = "gamma"
-# densityof2Ns = "normal"
+densityof2Ns = "normal"
 # densityof2Ns = "fixed2Ns"
 thetaN = 10000
 thetaS = 10000
@@ -34,10 +34,10 @@ elif densityof2Ns == "gamma":
     g = [2,2]
     max2Ns = 1
 elif densityof2Ns == "normal":
-    g = [-1,1]
+    g = [-5,3]
     max2Ns = None
 elif densityof2Ns == "fixed2Ns":
-    g = [-5]
+    g = [-10]
     max2Ns = None
 pointmass_and_value = (False,False)
 pointmass_and_value = (0.4,0.0)
@@ -46,12 +46,15 @@ ddir = "/mnt/d/genemod/better_dNdS_models/popgen/SF_Ratios/testbed/"
 fnamebase = "testbed_{}_{}data.txt"
 
 pointmassheaderstring = '' if pointmass_and_value[0]==False else " point mass location: {}  point mass value: {} ".format(pointmass_and_value[0],pointmass_and_value[1])
-pointmassfilenamestring = '' if pointmass_and_value[0]==False else "pm_"
+pointmassfilenamestring = '' if pointmass_and_value[0]==False else ( "pm0_" if pointmass_and_value[1]==0.0 else "pm_")
 foldstr = "unfolded" if folded == False else "folded"
 
 foutname = op.join(ddir,fnamebase).format(densityof2Ns,pointmassfilenamestring)
 # def simsfsratio(thetaN,thetaS,max2Ns,nc ,maxi,dofolded,misspec,densityof2Ns,params,pm0, returnexpected, thetaratio,pmmass = None,pmval = None)
-nsfs,ssfs,ratios = SRF.simsfsratio(thetaN,thetaS,max2Ns,nc,None,folded,None,densityof2Ns,g,None,False,None,pmmass=pointmass_and_value[0],pmval=pointmass_and_value[1])
+if pointmass_and_value[1] == 0.0:
+    nsfs,ssfs,ratios = SRF.simsfsratio(thetaN,thetaS,max2Ns,nc,None,folded,None,densityof2Ns,g,pointmass_and_value[0],False,None)
+else:
+    nsfs,ssfs,ratios = SRF.simsfsratio(thetaN,thetaS,max2Ns,nc,None,folded,None,densityof2Ns,g,None,False,None,pmmass=pointmass_and_value[0],pmval=pointmass_and_value[1])
 
 pointmassstring = '' if pointmass_and_value[0]==False else " point mass location: {}  point mass value: {} ".format(pointmass_and_value[0],pointmass_and_value[1])
 foldstr = "unfolded" if folded == False else "folded"

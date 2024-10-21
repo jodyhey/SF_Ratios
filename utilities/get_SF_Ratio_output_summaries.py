@@ -147,8 +147,11 @@ def parse_file(filepath,headers):
                     else:
                         data["Mean"] = data["p1"]
                         data["Mode"] = data["p1"]
-                elif data['Density'] == 'discrete3':
-                    data["Mean"] = -(11/2)* (-1 + 92*float(data["p1"]) + float(data["p2"]))
+            elif data['Density'] in ("discrete3","uni3fixed"):
+                data["Mode"] = "na"
+            elif data["Density"] == "uni3float":
+                data["Mode"] = "na"
+                
         elif "mode" in line:
             data["Mode"] = line.split('\t')[1].strip() if '\t' in line else None
         tempcounter += 1  
@@ -158,7 +161,27 @@ def parse_file(filepath,headers):
             li += 1
         data["EucDis"],data["RMSE"] = calcdistances(lines[li+2:])
     except:
-        pass
+        pass        
+    while data["RunTime"] == None:
+        if li >= len(lines):
+            break
+        line = lines[li]
+        if line.startswith("Time taken:"):
+            time_str = line[len("Time taken:"):].strip()
+            parts = time_str.split(', ')
+            hours, minutes, seconds = 0, 0, 0.0
+            for part in parts:
+                if "hour" in part:
+                    hours = int(part.split()[0])  # Extract number of hours
+                elif "minute" in part:
+                    minutes = int(part.split()[0])  # Extract number of minutes
+                elif "second" in part:
+                    seconds = float(part.split()[0])  # Extract number of seconds
+            rounded_seconds = round(seconds)
+            data["RunTime"] = f"{hours}h{minutes}m{rounded_seconds}s"
+        li += 1
+
+
     return [data[header] for header in headers]
 
 def run(args):
@@ -169,7 +192,7 @@ def run(args):
 
     # Define the headers for the CSV file
     headers = [
-        "File","fileMtime","IntCheck","NonS/Syn","nc", "numparams","FixQR", "Density", "SetMax2Ns", "FixMode0", "PMmode",
+        "File","fileMtime","RunTime","IntCheck","NonS/Syn","nc", "numparams","FixQR", "Density", "SetMax2Ns", "FixMode0", "PMmode",
         "Lklhd","AIC", "Qratio","Qratio_CI", "p1","p1_CI", "p2","p2_CI","estMax2Ns","estMax2Ns_CI",
         "pm0_mass","pm0_mass_CI","pm_mass","pm_mass_CI","pm_val","pm_val_CI","Mean", "Mode", "EucDis","RMSE"
         ]
