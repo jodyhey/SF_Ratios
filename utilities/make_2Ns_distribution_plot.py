@@ -114,27 +114,27 @@ def parse_file(filepath):
         elif "pm_val" in line:
             data["pm_val"] = line.split('\t')[1].strip() if '\t' in line else None
             data["pm_val_CI"] = line.split('\t')[2].strip() if '\t' in line else None
-        elif "expectation" in line:
+        elif "expectation" in line or "Mean" in line:
             data["Mean"] = line.split('\t')[1].strip() if '\t' in line else None
-            if data["Mean"] == 'nan':
-                if data["densityof2Ns"]=='single2Ns':
-                    if data["PMmode"] == "PM_at_0":
-                        data["Mean"] = (1- float(data["pm0_mass"] ))* float(data["p1"]) 
-                        if float(data["pm0_mass"]) > 0.5:
-                            data["Mode"] = 0.0
-                        else:
-                            data["Mode"] = data["p1"]
-                    elif data["PMmode"] == "PM_M_and_V":
-                        data["Mean"] = (1- float(data["pm_mass"] ))* float(data["p1"])  + float(data["pm_mass"] ) * float(data["pm_val"]) 
-                        if float(data["pm_mass"]) > 0.5:
-                            data["Mode"] = data["pm_val"]
-                        else:
-                            data["Mode"] = data["p1"]
-                    else:
-                        data["Mean"] = data["p1"]
-                        data["Mode"] = data["p1"]
-                elif data['densityof2Ns'] == 'discrete3':
-                    data["Mean"] = -(11/2)* (-1 + 92*float(data["p1"]) + float(data["p2"]))
+            # if data["Mean"] == 'nan':
+            #     if data["densityof2Ns"]=='single2Ns':
+            #         if data["PMmode"] == "PM_at_0":
+            #             data["Mean"] = (1- float(data["pm0_mass"] ))* float(data["p1"]) 
+            #             if float(data["pm0_mass"]) > 0.5:
+            #                 data["Mode"] = 0.0
+            #             else:
+            #                 data["Mode"] = data["p1"]
+            #         elif data["PMmode"] == "PM_M_and_V":
+            #             data["Mean"] = (1- float(data["pm_mass"] ))* float(data["p1"])  + float(data["pm_mass"] ) * float(data["pm_val"]) 
+            #             if float(data["pm_mass"]) > 0.5:
+            #                 data["Mode"] = data["pm_val"]
+            #             else:
+            #                 data["Mode"] = data["p1"]
+            #         else:
+            #             data["Mean"] = data["p1"]
+            #             data["Mode"] = data["p1"]
+            #     elif data['densityof2Ns'] == 'discrete3':
+            #         data["Mean"] = -(11/2)* (-1 + 92*float(data["p1"]) + float(data["p2"]))
         elif "mode" in line:
             data["Mode"] = line.split('\t')[1].strip() if '\t' in line else None
         tempcounter += 1  
@@ -253,13 +253,15 @@ def generate_distribution_plot(data,poplabel,filename,xliml=None,xlimr = None):
 
     # Plot main distribution
     plot_main(ax_main, x, y)
-    poplabel += "\nNonSynonymous" if "nonsynonymous" in data["File"] else "\nSynonymous"
+    poplabel += "\nNonSynonymous" if "nons" in data["File"].lower() else "\nSynonymous"
     if data["densityof2Ns"]=="normal":
         infostr = "{}\nGaussian\nMean: {:.3f}\nStd Dev: {:.3f}".format(poplabel,float(data["p1"]),float(data["p2"]))
+        if data["pm0_mass"] not in (None,0.0) or data["pm_mass"] not in (None,0.0):
+            infostr += "\nMean with point mass: {:0.3f}".format(float(data["Mean"]))            
     elif data["densityof2Ns"]=="lognormal":
-        infostr = "{}\nLogNormal\n".format(poplabel) + r'$\mu$: {:.3f}'.format(float(data["p1"])) +"\n" + r'$\sigma$: {:.3f}'.format(float(data["p2"])) + "\n" + "mode: {:.3f}\nexpectation: {:.3f}".format(float(data["Mode"]),float(data["Mean"]))
+        infostr = "{}\nLogNormal\n".format(poplabel) + r'$\mu$: {:.3f}'.format(float(data["p1"])) +"\n" + r'$\sigma$: {:.3f}'.format(float(data["p2"])) + "\n" + "Mode: {:.3f}\nMean: {:.3f}".format(float(data["Mode"]),float(data["Mean"]))
     elif data["densityof2Ns"]=="gamma":
-        infostr = "{}\nGamma\n".format(poplabel) + r'$\alpha$: {:.3f}'.format(float(data["p1"])) +"\n" + r'$\beta$: {:.3f}'.format(float(data["p2"])) + "\n" + "mode: {:.3f}\nexpectation: {:.3f}".format(float(data["Mode"]),float(data["Mean"]))
+        infostr = "{}\nGamma\n".format(poplabel) + r'$\alpha$: {:.3f}'.format(float(data["p1"])) +"\n" + r'$\beta$: {:.3f}'.format(float(data["p2"])) + "\n" + "Mode: {:.3f}\nMean: {:.3f}".format(float(data["Mode"]),float(data["Mean"]))
     if data["SetMax2Ns"] not in ("None",None):
         infostr += "\nFixed max 2$N_e s$: {}".format(float(data["SetMax2Ns"]))
     elif data["estMax2Ns"]  not in ("None",None):
@@ -276,24 +278,26 @@ def generate_distribution_plot(data,poplabel,filename,xliml=None,xlimr = None):
     plt.text(0.05, 0.95, infostr, transform=plt.gca().transAxes, fontsize=14, 
          verticalalignment='top', bbox=dict(boxstyle="round", alpha=0.12))
 
-
-
     # Check if we need to plot point mass
-    if data["pm_mass"] not in (None, 0):
-        if isinstance(data["pm_mass"], (list, tuple)) and len(data["pm_mass"]) == 2:
+    # if data["pm_mass"] not in (None, 0):
+    if data["PMmode"] != "FALSE":
+        # if isinstance(data["pm_mass"], (list, tuple)) and len(data["pm_mass"]) == 2:
+        if data["PMmode"] == "PM_M_and_V":
             point_height, point_location = float(data["pm_mass"]),float(data["pm_val"])
+        elif data["PMmode"] == "PM_at_0":
+            point_height, point_location = float(data["pm0_mass"]), 0
         else:
-            point_height, point_location = float(data["pm_mass"]), 0
-
+            print("point mass error")
+            exit()
         # Determine if a split axis is needed
         if point_height > max(y) * 10:  # Arbitrary threshold for split axis
             # Create a split y-axis
             ax_split = ax_main.twinx()
-            plot_point_mass(ax_split, point_height, x_loc=point_location, width=0.1)
+            plot_point_mass(ax_split, point_height, x_loc=point_location, width=1)
             ax_split.set_ylim(bottom=min(y), top=point_height * 1.2)  # Adjust top for visibility
             ax_split.set_yticks([])  # Hide y-ticks for split axis
         else:
-            plot_point_mass(ax_main, point_height, x_loc=point_location, width=0.1)
+            plot_point_mass(ax_main, point_height, x_loc=point_location, width=1)
 
     # Setting the x and y axis labels with the specified formatting
     # plt.xlabel(r'$\textit{2Ns}$', fontsize=14, fontstyle='italic')

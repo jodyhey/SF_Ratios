@@ -1,7 +1,15 @@
 """
-reads output from one more output files from PRF-Ratio.py  
+reads output from one more output files from SF_Ratios.py  
 generates a csv file with one row for each file 
-containing the likelihood, AIC, and other results 
+reports runtime terms, data set stuff, parameter estimates, etc etc
+usage: get_SF_Ratio_output_summaries.py [-h] -d FILEDIRECTORY -f OUTFILENAME [-p POPLABEL] [-x SKIPFILESTRING]
+
+options:
+  -h, --help         show this help message and exit
+  -d FILEDIRECTORY   path to files
+  -f OUTFILENAME     outfilename
+  -p POPLABEL        population/sample label
+  -x SKIPFILESTRING  skip files with this string in their name, e.g. '_PM_'
 
 """
 import os
@@ -49,6 +57,7 @@ def parse_file(filepath,headers):
         li += 1
     data["PMmode"]  = "FALSE"
     data["nc"]  = "?"
+    data["OptMethod"] = ''
     while len(lines[li]) > 2 :
         if "sfsfilename:" in lines[li]:
             data["File"] = op.split(filepath)[-1]
@@ -73,6 +82,17 @@ def parse_file(filepath,headers):
             data["numparams"] = int(lines[li].split(":")[1].strip())
         if "nc:" in lines[li]:
             data["nc"] = int(lines[li].split(":")[1].strip())
+        if "foldstatus:" in lines[li]:
+            data["FoldStatus"] = lines[li].split(":")[1].strip()
+        if "optimizetries:" in lines[li] and int(lines[li].split(":")[1].strip()) > 0:
+            data["OptMethod"] += "," if len(data["OptMethod"]) > 0 else ""
+            data["OptMethod"] += "reg{}".format(lines[li].split(":")[1].strip())
+        if "basinhoppingopt:" in lines[li] and "True" in lines[li]:
+            data["OptMethod"] += "," if len(data["OptMethod"]) > 0 else ""
+            data["OptMethod"] += "BH"
+        if "dualannealopt:" in lines[li] and "True" in lines[li]:
+            data["OptMethod"] += "," if len(data["OptMethod"]) > 0 else ""
+            data["OptMethod"] += "DA"
         li += 1
 
     while "trial\t" not in lines[li]:
@@ -192,9 +212,9 @@ def run(args):
 
     # Define the headers for the CSV file
     headers = [
-        "File","fileMtime","RunTime","IntCheck","NonS/Syn","nc", "numparams","FixQR", "Density", "SetMax2Ns", "FixMode0", "PMmode",
+        "File","fileMtime","RunTime","FoldStatus","OptMethod","nc","IntCheck","Mean","NonS/Syn", "Density", "SetMax2Ns", "FixQR","FixMode0", "PMmode","numparams",
         "Lklhd","AIC", "Qratio","Qratio_CI", "p1","p1_CI", "p2","p2_CI","estMax2Ns","estMax2Ns_CI",
-        "pm0_mass","pm0_mass_CI","pm_mass","pm_mass_CI","pm_val","pm_val_CI","Mean", "Mode", "EucDis","RMSE"
+        "pm0_mass","pm0_mass_CI","pm_mass","pm_mass_CI","pm_val","pm_val_CI","Mode", "EucDis","RMSE"
         ]
     if args.poplabel is not None:
         headers.insert(0,"dataset")
@@ -202,7 +222,7 @@ def run(args):
         writer = csv.writer(csvfile)
         writer.writerow(headers)
         for filename in os.listdir(ddir):
-            if filename.endswith('.out'):
+            if filename.endswith('.out') and (args.skipfilestring is None or args.skipfilestring not in filename):
                 filepath = os.path.join(ddir, filename)
                 row = parse_file(filepath,headers)
                 if args.poplabel is not None:
@@ -218,20 +238,13 @@ def parsecommandline():
     parser.add_argument("-d", dest="filedirectory",required=True,type = str, help="path to files")
     parser.add_argument("-f",dest="outfilename",required=True,type=str,help="outfilename")
     parser.add_argument("-p",dest="poplabel",default = None,help="population/sample label")
+    parser.add_argument("-x",dest="skipfilestring",default = None,help="skip files with this string in their name, e.g. '_PM_'")
     args  =  parser.parse_args(sys.argv[1:])  
     args.commandstring = " ".join(sys.argv[1:])
     return args
 
 
 if __name__ == '__main__':
-    """
-        usage: get_run_one_pair_summaries.py [-h] -d FILEDIRECTORY -f OUTFILENAME
-
-        options:
-        -h, --help        show this help message and exit
-        -d FILEDIRECTORY  path to files
-        -f OUTFILENAME    outfilename    
-    """
-    
+   
     args = parsecommandline()
     run(args)

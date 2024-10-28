@@ -26,14 +26,14 @@ options:
   -c FIX_THETA_RATIO  set the fixed value of thetaS/thetaN
   -d DENSITYOF2NS     gamma, lognormal, normal, fixed2Ns
   -f FOLDSTATUS       usage regarding folded or unfolded SFS distribution, 'isfolded', 'foldit' or 'unfolded'
-  -g                  turn on global optimzation using basinhopping (very slow, often finds better optimum)
+  -g                  turn on global optimization using basinhopping (very slow, often finds better optimum)
   -i OPTIMIZETRIES    run the regular scipy minimize optimizer # times, relatively fast but not as good as -u or -g
   -m SETMAX2NS        optional setting for 2Ns maximum, default = 0, use with -d lognormal or -d gamma
   -M MAXI             the maximum bin index to include in the calculations, default=None
   -p POPLABEL         a population name or other label for the output filename and for the chart
   -t                  if -d lognormal or -d gamma, estimate the maximum 2Ns value
   -r OUTDIR           results directory
-  -u                  turn on global optimzation using dualannealing (slow, often finds better optimum)
+  -u                  turn on global optimization using dualannealing (slow, often finds better optimum)
   -y                  include a proportion of the mass at some point in the density model, requires normal, lognormal or gamma
   -x                  if true and output file already exists, the run is stopped, else a new numbered output file is made
   -z                  include a proportion of the mass at zero in the density model
@@ -134,7 +134,7 @@ def getSFSratios(fn,dofolded,isfolded = False):
     else: # return original, i.e. sfss 
         neusfs = sfss[0]
         selsfs = sfss[1]
-        nc = 2*(len(neusfs[0]) - 1)
+        nc = 2*(len(neusfs) - 1) 
 
     ratios = [math.inf if  neusfs[j] <= 0.0 else selsfs[j]/neusfs[j] for j in range(len(neusfs))]
     thetaNest = sum(neusfs)/sum([1/i for i in range(1,nc )]) # this should work whether or not the sfs is folded 
@@ -652,14 +652,14 @@ def parsecommandline():
         parser.add_argument("-d",dest="densityof2Ns",default = "fixed2Ns",type=str,help="gamma, lognormal, normal, fixed2Ns")
 
     parser.add_argument("-f",dest="foldstatus",required=True,help="usage regarding folded or unfolded SFS distribution, 'isfolded', 'foldit' or 'unfolded' ")    
-    parser.add_argument("-g",dest="basinhoppingopt",default=False,action="store_true",help=" turn on global optimzation using basinhopping (very slow, often finds better optimum)") 
+    parser.add_argument("-g",dest="basinhoppingopt",default=False,action="store_true",help=" turn on global optimization using basinhopping (very slow, often finds better optimum)") 
     parser.add_argument("-i",dest="optimizetries",type=int,default=0,help="run the regular scipy minimize optimizer # times, relatively fast but not as good as -u or -g")
     parser.add_argument("-m",dest="setmax2Ns",default=0,type=float,help="optional setting for 2Ns maximum, default = 0, use with -d lognormal or -d gamma")
     parser.add_argument("-M",dest="maxi",default=None,type=int,help="the maximum bin index to include in the calculations, default=None")
     parser.add_argument("-p",dest="poplabel",default = "", type=str, help="a population name or other label for the output filename and for the chart")    
     parser.add_argument("-t",dest="estimatemax2Ns",default=False,action="store_true",help=" if  -d lognormal or -d gamma,  estimate the maximum 2Ns value") 
     parser.add_argument("-r",dest="outdir",default = "", type=str, help="results directory")    
-    parser.add_argument("-u",dest="dualannealopt",default=False,action="store_true",help=" turn on global optimzation using dualannealing (slow, often finds better optimum)") 
+    parser.add_argument("-u",dest="dualannealopt",default=False,action="store_true",help=" turn on global optimization using dualannealing (slow, often finds better optimum)") 
     parser.add_argument("-y",dest="estimate_pointmass",action="store_true",default=False,help="include a proportion of the mass at some point in the density model, requires normal, lognormal or gamma") 
     parser.add_argument("-x",dest="filecheck",action="store_true",default=False,help=" if true and output file already exists, the run is stopped, else a new numbered output file is made") 
     parser.add_argument("-z",dest="estimate_pointmass0",action="store_true",default=False,help="include a proportion of the mass at zero in the density model")    

@@ -877,14 +877,14 @@ def NegL_SFSRATIO_estimate_thetaratio(p,nc,dofolded,includemisspec,densityof2Ns,
                 if g == 0:
                     alpha = thetaratio
                 else:
-                    sint = prf_selection_weight(nc,i,g,foldxterm,misspec)
+                    ux = prf_selection_weight(nc,i,g,foldxterm,misspec)
                     if densityof2Ns == "fixed2Ns":
                         if estimate_pointmass0:
-                            sint = pm0*(nc /(i*(nc -i)) if foldxterm else 1/i ) + (1-pm0)*sint # mass at 0 times neutral weight + (1- mass at 0) times selection weight
+                            ux = pm0*(nc /(i*(nc -i)) if foldxterm else 1/i ) + (1-pm0)*ux # mass at 0 times neutral weight + (1- mass at 0) times selection weight
                         elif estimate_pointmass:
-                            sint = pmass*prf_selection_weight(nc,i,pval,foldxterm,misspec) + (1-pmass) * sint
+                            ux = pmass*prf_selection_weight(nc,i,pval,foldxterm,misspec) + (1-pmass) * ux
 
-                    alpha = thetaratio*sint/(nc /(i*(nc -i)) if foldxterm else 1/i )
+                    alpha = thetaratio*ux/(nc /(i*(nc -i)) if foldxterm else 1/i )
                 return intdeltalogprobratio(alpha,z,thetaNspace,nc,i,foldxterm)      
             except Exception as e:
                 estr = ["NegL_SFSRATIO_estimate_thetaratio calc_bin_i math.inf error:".format(e)]
@@ -1093,12 +1093,12 @@ def simsfs_continuous_gdist(theta,max2Ns,nc,misspec,maxi,densityof2Ns, params,pm
     sfs = [0]*nc 
     for i in range(1,nc):
         ex,mode,sd,densityadjust,g_xvals = getXrange(densityof2Ns,params,max2Ns)
-        sint = integrate2Ns(densityof2Ns,max2Ns,tuple(params),nc,i,False,misspec,g_xvals,densityadjust)        
+        ux = integrate2Ns(densityof2Ns,max2Ns,tuple(params),nc,i,False,misspec,g_xvals,densityadjust)        
         if pm0 not in (False,None):
-            sint = pm0/i + (1-pm0)*sint
+            ux = pm0/i + (1-pm0)*ux
         elif pmmass not in (False,None):
-            sint = pmmass * prf_selection_weight(nc ,i,pmval,False,misspec) + (1-pmmass) * sint
-        sfsexp = theta*sint
+            ux = pmmass * prf_selection_weight(nc ,i,pmval,False,misspec) + (1-pmmass) * ux
+        sfsexp = theta*ux
         assert sfsexp>= 0
         if returnexpected:
             sfs[i] = sfsexp
