@@ -57,7 +57,7 @@ def parse_file(filepath,headers):
         li += 1
     data["PMmode"]  = "FALSE"
     data["nc"]  = "?"
-    data["OptMethod"] = ''
+    data["OptMethods"] = ''
     while len(lines[li]) > 2 :
         if "sfsfilename:" in lines[li]:
             data["File"] = op.split(filepath)[-1]
@@ -85,17 +85,18 @@ def parse_file(filepath,headers):
         if "foldstatus:" in lines[li]:
             data["FoldStatus"] = lines[li].split(":")[1].strip()
         if "optimizetries:" in lines[li] and int(lines[li].split(":")[1].strip()) > 0:
-            data["OptMethod"] += "," if len(data["OptMethod"]) > 0 else ""
-            data["OptMethod"] += "reg{}".format(lines[li].split(":")[1].strip())
+            data["OptMethods"] += "," if len(data["OptMethods"]) > 0 else ""
+            data["OptMethods"] += "reg{}".format(lines[li].split(":")[1].strip())
         if "basinhoppingopt:" in lines[li] and "True" in lines[li]:
-            data["OptMethod"] += "," if len(data["OptMethod"]) > 0 else ""
-            data["OptMethod"] += "BH"
+            data["OptMethods"] += "," if len(data["OptMethods"]) > 0 else ""
+            data["OptMethods"] += "BH"
         if "dualannealopt:" in lines[li] and "True" in lines[li]:
-            data["OptMethod"] += "," if len(data["OptMethod"]) > 0 else ""
-            data["OptMethod"] += "DA"
+            data["OptMethods"] += "," if len(data["OptMethods"]) > 0 else ""
+            data["OptMethods"] += "DA"
         li += 1
 
     while "trial\t" not in lines[li]:
+
         li += 1
         if li >= len(lines):
             break
@@ -108,6 +109,8 @@ def parse_file(filepath,headers):
         if li >= len(lines):
             break
         line = lines[li]
+        if "Optimization:" in line:
+            data["BestOptMethod"] = line.strip().split()[1]
         if "AIC\t" in  line:
             data["AIC"] = float(line.strip().split()[1])
         if "likelihood" in line and "thetaratio" not in line:
@@ -212,8 +215,8 @@ def run(args):
 
     # Define the headers for the CSV file
     headers = [
-        "File","fileMtime","RunTime","FoldStatus","OptMethod","nc","IntCheck","Mean","NonS/Syn", "Density", "SetMax2Ns", "FixQR","FixMode0", "PMmode","numparams",
-        "Lklhd","AIC", "Qratio","Qratio_CI", "p1","p1_CI", "p2","p2_CI","estMax2Ns","estMax2Ns_CI",
+        "File","fileMtime","RunTime","FoldStatus","OptMethods","BestOptMethod","nc","IntCheck","NonS/Syn", "Density", "SetMax2Ns", "FixQR","FixMode0", "PMmode","numparams",
+        "Lklhd","AIC","Mean", "Qratio","Qratio_CI", "p1","p1_CI", "p2","p2_CI","estMax2Ns","estMax2Ns_CI",
         "pm0_mass","pm0_mass_CI","pm_mass","pm_mass_CI","pm_val","pm_val_CI","Mode", "EucDis","RMSE"
         ]
     if args.poplabel is not None:
@@ -231,7 +234,6 @@ def run(args):
                 writer.writerow(row)
     print(f"Summary CSV file has been created at {output_path}.")
     return
-
 
 def parsecommandline():
     parser = argparse.ArgumentParser()

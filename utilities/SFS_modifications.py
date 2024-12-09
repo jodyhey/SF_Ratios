@@ -1,6 +1,6 @@
 """
     for making changes to a text file with one or more SFSs 
-    Any line in the text file with nonnumerica characters is a header
+    Any line in the text file with nonnumeric characters is a header
         other non-empty lines are SFSs
     can handle empty lines between SFSs 
     SFSs include the zero frequency bin, which can be 0 as the value, whatever it is, is ignored:
@@ -55,16 +55,6 @@ import os.path as op
 import numpy as np 
 from scipy.stats import hypergeom
 
-
-# this does not work 
-# def get_number_of_sampled_genomes(sfs,isfolded):
-#     numsamplingbins = len(sfs)-1 
-#     sampsize = numsamplingbins + 1 
-#     if isfolded:
-#         numg = 2*numsamplingbins
-#     else:
-#         numg = numsamplingbins + 1 
-#     return numg,numsamplingbins,sampsize
 
 def get_number_of_sampled_genomes(sfs,isfolded):
     # numg  = # of sampled genomes or gene copies,  i.e. 2x # of diploid individuals
@@ -138,10 +128,9 @@ def subsample(original_sfs, subsampsize,numg):
     return newsfs 
 
 
-
 def downsample(original_sfs, downsamp_numg,numg):
     """
-        sample fro 0 copies up to, but not including downsamp_numg copies,  as these would be fixed in the sample
+        sample from 0 copies up to, but not including downsamp_numg copies,  as these would be fixed in the sample
     """
     newsfs = [0]*(downsamp_numg+1)
     for pi,popcount in enumerate(original_sfs):

@@ -37,7 +37,7 @@ import numpy as np
 from scipy.stats import norm
 import matplotlib.pyplot as plt
 from scipy.optimize import minimize,minimize_scalar
-from  scipy.optimize import basinhopping
+from  scipy.optimize import basinhopping, brentq,dual_annealing
 from scipy.stats import chi2
 current_dir = op.dirname(os.path.abspath(__file__)) # the directory of this python script
 parent_dir = op.dirname(current_dir)  # the parent directory 
@@ -104,9 +104,10 @@ def getslimgeneratedratios(args,slim_SFSs_dir,nc, foldstatus,densityof2Ns,maxi =
         if densityof2Ns =="lognormal":
             gvalstrs = [["0.3","0.5"]]
         elif densityof2Ns == "gamma":
-            gvalstrs = [["11.0","0.1"]]
+            # gvalstrs = [["2.0","2.0"]]
+            gvalstrs = [["3.0","4.0"],["5.0","11.0"],["6.0","51.0"]]
         elif densityof2Ns  == "fixed2Ns":
-            gvalstrs = [["-50.0"]]            
+            gvalstrs = [["-100.0"]]            
 
     else:
 
@@ -114,11 +115,13 @@ def getslimgeneratedratios(args,slim_SFSs_dir,nc, foldstatus,densityof2Ns,maxi =
             # gvalstrs = [["0.3","0.5"], ["1.0","0.7"], ["2.0","1.0"], ["2.2","1.4"], ["3.0","1.2"]]
             gvalstrs = [["0.3","0.5"], ["1.0","0.7"], ["2.0","1.0"], ["3.0","1.2"]]
         elif densityof2Ns == "gamma":
-            gvalstrs = [["11.0","0.1"],["8.5","0.2"],["3.86","0.7"],["4.64","1.1"]]
+            # gvalstrs = [["11.0","0.1"],["8.5","0.2"],["3.86","0.7"],["4.64","1.1"]]
+            gvalstrs = [["2.0","2.0"],["3.0","4.0"],["5.0","11.0"],["6.0","51.0"]]
         elif densityof2Ns == "normal":
             exit()
         elif densityof2Ns == "fixed2Ns":
-            gvalstrs = [["-50.0"],["-10.0"],["-5.0"],["-1.0"],["0.0"],["1.0"],["5.0"],["10.0"],["50.0"]]
+            # gvalstrs = [["-50.0"],["-10.0"],["-5.0"],["-1.0"],["0.0"],["1.0"],["5.0"],["10.0"],["50.0"]]
+            gvalstrs = [["-1000.0"],["-500.0"],["-100.0"],["-50.0"],["-10.0"],["-5.0"],["-1.0"],["0.0"],["1.0"],["5.0"],["10.0"]]
     
     gvals = [list(map(float,temp)) for temp in gvalstrs]
     minNval = 0
@@ -205,7 +208,7 @@ def set_bounds_and_start_possibilities(args,thetaNest,thetaSest,ntrials):
         for sv in startvals: sv.append(random.uniform(0.3,3))
         for sv in startvals: sv.append(random.uniform(0.5,1.5))
     elif args.densityof2Ns =="gamma":
-        bounds += [(0.5,40),(0.00001,20)]        
+        bounds += [(0.5,40),(0.5,10000)]        
         for sv in startvals: sv.append(random.uniform(1,5))
         for sv in startvals: sv.append(random.uniform(0.1,2))
     elif args.densityof2Ns=="normal":
@@ -247,7 +250,7 @@ def run(args):
     ntrialsperg = args.ntrials
     densityof2Ns = args.densityof2Ns 
     foldstatus = args.foldstatus
-    usebasinhopping = args.usebasinhopping
+    usedualannealing = args.dualannealopt
     use_theta_ratio = args.use_theta_ratio
     fix_theta_ratio = args.fix_theta_ratio
     use_misspec = args.use_misspec
@@ -311,7 +314,7 @@ def run(args):
         misspecresults = []
     if use_theta_ratio:
         func = SF_Ratios_functions.NegL_SFSRATIO_estimate_thetaratio
-        basearglist = [nc,dofoldedlikelihood,use_misspec,densityof2Ns,fix_theta_ratio,fixedmax2Ns,False,False,False]
+        basearglist = [nc,dofoldedlikelihood,use_misspec,densityof2Ns,fix_theta_ratio,fixedmax2Ns,False,False,False,False] 
     else:
         func = SF_Ratios_functions.NegL_SFSRATIO_estimate_thetaS_thetaN
         basearglist = [nc,dofoldedlikelihood,use_misspec,densityof2Ns,False,fixedmax2Ns,False,False,False]
@@ -351,6 +354,10 @@ def run(args):
             arglist.append(thetaNspace)
             arglist.append(ratios)
 
+
+
+
+
             # do ntries optimzation attempts and pick the best one 
             ntries = args.optimizetries 
             bounds,startarrays = set_bounds_and_start_possibilities(args,thetaNest,thetaSest,ntries)
@@ -371,18 +378,21 @@ def run(args):
                         print("{} #{} >{} {:.5f} {}".format(g,i,ii,-result.fun,result.x))
             besti = rfunvals.index(max(rfunvals))
             result = rxvals[besti]
+            # print("opt",result)
             atboundary = boundarycheck(result.x, bounds)
-            if usebasinhopping: #  or (atboundary and DEBUGMODE==False):
+            if usedualannealing: #  or (atboundary and DEBUGMODE==False):
                 
                 boundsarray = bounds
                 # use result.x to set bounds and start search
                 # startarray = [min(bounds[i][1],max(bounds[i][0],random.uniform(v/1.5,v*1.5))) for i,v in enumerate(result.x) ] #won't work if v is 0 
                 startarray = startarrays[besti]
                 # print(args.slim_SFSs_dir,result.x,"\n",boundsarray,"\n",startarray)
-                bresult = basinhopping(func,np.array(startarray),T=10.0,
-                                minimizer_kwargs={"method":optimizemethod,"bounds":boundsarray,"args":arglist})
-                if -bresult.fun > -result.fun:
-                    result = bresult
+                # da_result = dual_annealing(func,np.array(startarray),T=10.0,
+                #                 minimizer_kwargs={"method":optimizemethod,"bounds":boundsarray,"args":arglist})
+                da_result = dual_annealing(func,boundsarray,args=arglist)
+                # print("Da",da_result)
+                if -da_result.fun > -result.fun:
+                    result = da_result
             pi = 0
             # okrun = result.x[0] < 1.0
             okrun = True
@@ -624,7 +634,7 @@ def run(args):
 def parsecommandline():
     parser = argparse.ArgumentParser()
     parser.add_argument("-c",dest="fix_theta_ratio",default=None,type=float,help="set the fixed value of thetaS/thetaN")
-    parser.add_argument("-b",dest="usebasinhopping",action="store_true",default=False,help="run the basinhopping optimizer after the regular optimizer")
+    parser.add_argument("-b",dest="dualannealopt",action="store_true",default=False,help="run the dual annealing optimizer after the regular optimizer")
     parser.add_argument("-d",dest="densityof2Ns",default = "fixed2Ns",type=str,help="gamma or lognormal, only if simulating a distribution of Ns, else single values of Ns are used")
     parser.add_argument("-f",dest="foldstatus",required=True,help="usage regarding folded or unfolded SFS distribution, 'isfolded', 'foldit' or 'unfolded' ")    
     parser.add_argument("-i",dest="optimizetries",type=int,default=1,help="run the minimize optimizer # times, default is once")
@@ -666,8 +676,6 @@ def parsecommandline():
         parser.error("-f {} is wrong,  this tag requires one of 'isfolded','foldit', or 'unfolded'".format(args.foldstatus))
     if args.use_misspec and args.foldstatus != "unfolded":
         parser.error(" use of misspecification (-p) requires that -f be unfolded")
-    if args.usebasinhopping:
-        args.optimize5times = True
     args.commandstring = " ".join(sys.argv[1:])
     return args
 

@@ -171,7 +171,8 @@ def buildSFStable(args,paramdic,pm0tempval,pmmasstempval,pmvaltempval,X,headers,
             neusfs,selsfs,ratios = SRF.simsfsratio(paramdic["thetaN"],paramdic["thetaS"],args.setmax2Ns,nc ,None,args.dofolded,
                 tempmisspec,args.densityof2Ns,params,pm0tempval, True, tempthetaratio, pmmass = pmmasstempval,pmval = pmvaltempval)
     elif args.densityof2Ns=='gamma':
-        params = (paramdic["alpha"],paramdic["beta"])
+        # params = (paramdic["alpha"],paramdic["beta"])
+        params = (paramdic["shape"],paramdic["mean"])
         if args.estimatemax2Ns:
             neusfs,selsfs,ratios = SRF.simsfsratio(paramdic["thetaN"],paramdic["thetaS"],paramdic["max2Ns"],nc ,None,args.dofolded,
                 tempmisspec,args.densityof2Ns,params, pm0tempval, True, tempthetaratio, pmmass = pmmasstempval,pmval = pmvaltempval)
@@ -243,7 +244,8 @@ def makeresultformatstrings(args):
         resultlabels += ["mu","sigma"]
         resultformatstrs += ["{}\t{:.5g}\t({:.5g} - {:.5g})","{}\t{:.5g}\t({:.5g} - {:.5g})"]
     elif args.densityof2Ns == "gamma":
-        resultlabels += ["alpha","beta"]
+        # resultlabels += ["alpha","beta"]
+        resultlabels += ["shape","mean"]
         resultformatstrs += ["{}\t{:.5g}\t({:.5g} - {:.5g})","{}\t{:.5g}\t({:.5g} - {:.5g})"]
     elif args.densityof2Ns == "uni3fixed":
         resultlabels += ["p0","p1"]
@@ -297,7 +299,7 @@ def set_bounds_and_start_possibilities(args,thetaNest,thetaSest,ntrials):
         for sv in startvals: sv.append(random.uniform(0.3,3))
         for sv in startvals: sv.append(random.uniform(0.5,1.5))
     elif args.densityof2Ns =="gamma":
-        bounds += [(0.5,40),(0.00001,50)]        
+        bounds += [(0.5,50),(0.00001,10000)]        
         for sv in startvals: sv.append(random.uniform(1,5))
         for sv in startvals: sv.append(random.uniform(0.1,2))
     elif args.densityof2Ns=="normal":
@@ -394,21 +396,23 @@ def writeresults(args,numparams,thetaNest,paramlabels,resultlabels,resultformats
         if args.fix_theta_ratio is not None:
             paramdic["thetaratio"] = args.fix_theta_ratio
         paramdic['thetaS'] = paramdic["thetaratio"]*thetaNest
-    if args.fixmode0:
-        if args.densityof2Ns=="lognormal":
-            args.setmax2Ns = math.exp(paramdic['mu'] - pow(paramdic['sigma'],2))
-        if args.densityof2Ns=="gamma":
-            if paramdic['alpha'] < 1:
-                args.setmax2Ns = 0.0
-            else:
-                args.setmax2Ns =  (paramdic['alpha'] - 1)*paramdic['beta']
+    # if args.fixmode0: not used in awhile 12/4/2024
+    #     if args.densityof2Ns=="lognormal":
+    #         args.setmax2Ns = math.exp(paramdic['mu'] - pow(paramdic['sigma'],2))
+    #     if args.densityof2Ns=="gamma":
+    #         # if paramdic['alpha'] < 1:
+    #         if paramdic['shape'] < 1:
+    #             args.setmax2Ns = 0.0
+    #         else:
+    #             args.setmax2Ns =  (paramdic['alpha'] - 1)*paramdic['beta']
+    #             args.setmax2Ns =  (paramdic['alpha'] - 1)*paramdic['beta']
     #get expectation
     pm0tempval = pmmasstempval = pmvaltempval = None
     densityof2Nsadjust = None
     if args.densityof2Ns == "lognormal":
         expectation,mode,negsd,densityof2Nsadjust,xvals = SRF.getXrange(args.densityof2Ns,(paramdic['mu'],paramdic['sigma']),(paramdic['max2Ns'] if args.estimatemax2Ns else args.setmax2Ns))
     elif args.densityof2Ns == "gamma" :
-        expectation,mode,negsd,densityof2Nsadjust,xvals = SRF.getXrange(args.densityof2Ns,(paramdic['alpha'],paramdic['beta']),(paramdic['max2Ns'] if args.estimatemax2Ns else args.setmax2Ns))
+        expectation,mode,negsd,densityof2Nsadjust,xvals = SRF.getXrange(args.densityof2Ns,(paramdic['shape'],paramdic['mean']),(paramdic['max2Ns'] if args.estimatemax2Ns else args.setmax2Ns))
     elif args.densityof2Ns == "uni3fixed":
         expectation = -(11/2)* (-1 + 92*paramdic['p0'] + paramdic['p1'])
         mode = np.nan
@@ -509,7 +513,8 @@ def run(args):
     args.nc = nc 
     args.datafileheader = datafileheader
     args.numparams = countparameters(args)
-    args.local_optimize_method="Nelder-Mead" # this works better, more consistently than Powell
+    args.local_optimize_method="Nelder-Mead" # this works better, more consistently and faster than Powell
+    
 
     # START RESULTS FILE
     outfilename = buildoutpaths(args)
@@ -548,7 +553,7 @@ def run(args):
         # result = OptimizeResult(x=[1.3276,0.3,0.3,-100,-5],fun=-1105,message = "debugging")
         resvals.append(result)
         rfunvals.append(-result.fun)
-        outf.write("{}\t{:.5g}\t{}\t{}\n".format(ii,-result.fun," ".join(f"{num:.5g}" for num in result.x),result.message))
+        outf.write("{}\t{:.5f}\t{}\t{}\n".format(ii,-result.fun," ".join(f"{num:.5e}" for num in result.x),result.message))
     outf.close()
     if args.optimizetries > 0:
         besti = rfunvals.index(max(rfunvals))
@@ -577,7 +582,7 @@ def run(args):
             # BHresult = OptimizeResult(x=[7.5858,10.0,4.2989,0.03835,-0.99699],fun=-1279.792,message = "debugging")
             BHlikelihood = -BHresult.fun
             outf = open(outfilename, "a")
-            outf.write("BH\t{:.5g}\t{}\t{}\n".format(BHlikelihood," ".join(f"{num:.5g}" for num in BHresult.x),BHresult.message))
+            outf.write("BH\t{:.5f}\t{}\t{}\n".format(BHlikelihood," ".join(f"{num:.5e}" for num in BHresult.x),BHresult.message))
             outf.close()
         except Exception as e:
             BHlikelihood = -np.inf
@@ -587,28 +592,40 @@ def run(args):
     else:
         BHlikelihood = -np.inf
         BHresult = None
-    #dualanneal
+    #dualanneal - use two starting temperatures, default and 20000
     if args.dualannealopt:
         try:
-            DAresult = dual_annealing(func, boundsarray, args=tuple(arglist))
-            DAlikelihood = -DAresult.fun
+            DAresult1 = dual_annealing(func, boundsarray, args=tuple(arglist))
+            DAlikelihood1 = -DAresult1.fun
             outf = open(outfilename, "a")
-            outf.write("DA\t{:.5g}\t{}\t{}\n".format(DAlikelihood," ".join(f"{num:.5g}" for num in DAresult.x),DAresult.message))
+            outf.write("DA1\t{:.5f}\t{}\t{}\n".format(DAlikelihood1," ".join(f"{num:.5e}" for num in DAresult1.x),DAresult1.message))
             outf.close()
         except Exception as e:
-            DAlikelihood = -np.inf
+            DAlikelihood1 = -np.inf
             outf = open(outfilename, "a")
-            outf.write("\ndualannealing failed with message : {}\n".format(e))
+            outf.write("\ndualannealing1 failed with message : {}\n".format(e))
+            outf.close()
+        try:
+            DAresult2 = dual_annealing(func, boundsarray, args=tuple(arglist),initial_temp=20000.0)
+            DAlikelihood2 = -DAresult2.fun
+            outf = open(outfilename, "a")
+            outf.write("DA2\t{:.5f}\t{}\t{}\n".format(DAlikelihood2," ".join(f"{num:.5e}" for num in DAresult2.x),DAresult2.message))
+            outf.close()
+        except Exception as e:
+            DAlikelihood2 = -np.inf
+            outf = open(outfilename, "a")
+            outf.write("\ndualannealing2 failed with message : {}\n".format(e))
             outf.close()
     else:
-        DAlikelihood = -np.inf   
-        DAresult = None     
-    #pick the 
-    [likelihood,result,outstring]= sorted([[OPTlikelihood,OPTresult,"Optimize"],[BHlikelihood,BHresult,"Basinhopping"],[DAlikelihood,DAresult,"Dualannealing"]], key=lambda x: x[0] if x[0] != -np.inf else float('-inf'))[2]
+        DAlikelihood1 = DAlikelihood2 =-np.inf   
+        DAresult1 = DAresult2 = None     
+    
 
-    # print(result)        
+    [likelihood,result,outstring]= sorted([[OPTlikelihood,OPTresult,"Optimize"],[BHlikelihood,BHresult,"Basinhopping"],
+                                           [DAlikelihood1,DAresult1,"Dualannealing1"],[DAlikelihood2,DAresult2,"Dualannealing2"]], 
+                                           key=lambda x: x[0] if x[0] != -np.inf else float('-inf'))[-1]
     confidence_intervals = generate_confidence_intervals(func,list(result.x), arglist, likelihood,boundsarray)
-    pm0tempval,pmmasstempval,pmvaltempval,paramdic,expectation,mode = writeresults(args,args.numparams,thetaNest,paramlabels,resultlabels,resultformatstrs,result.x,likelihood,confidence_intervals,outfilename,"\nMaximized Likelihood, AIC, Parameter Estimates, 95% Confidence Intervals:\n".format(outstring))
+    pm0tempval,pmmasstempval,pmvaltempval,paramdic,expectation,mode = writeresults(args,args.numparams,thetaNest,paramlabels,resultlabels,resultformatstrs,result.x,likelihood,confidence_intervals,outfilename,"\nOptimization: {}\nMaximized Likelihood, AIC, Parameter Estimates, 95% Confidence Intervals:\n".format(outstring))
     X,headers = buildSFStable(args,paramdic,pm0tempval,pmmasstempval,pmvaltempval,X,headers,nc)
     EucDis, RMSE = calcdistances(X)
     # WRITE a TABLE OF DATA and RATIOS UNDER ESTIMATED MODELS        
@@ -659,7 +676,7 @@ def parsecommandline():
     parser.add_argument("-p",dest="poplabel",default = "", type=str, help="a population name or other label for the output filename and for the chart")    
     parser.add_argument("-t",dest="estimatemax2Ns",default=False,action="store_true",help=" if  -d lognormal or -d gamma,  estimate the maximum 2Ns value") 
     parser.add_argument("-r",dest="outdir",default = "", type=str, help="results directory")    
-    parser.add_argument("-u",dest="dualannealopt",default=False,action="store_true",help=" turn on global optimization using dualannealing (slow, often finds better optimum)") 
+    parser.add_argument("-u",dest="dualannealopt",default=False,action="store_true",help=" turn on global optimization using dualannealing (runs two opimizations, slow but on average better than basin hopping)") 
     parser.add_argument("-y",dest="estimate_pointmass",action="store_true",default=False,help="include a proportion of the mass at some point in the density model, requires normal, lognormal or gamma") 
     parser.add_argument("-x",dest="filecheck",action="store_true",default=False,help=" if true and output file already exists, the run is stopped, else a new numbered output file is made") 
     parser.add_argument("-z",dest="estimate_pointmass0",action="store_true",default=False,help="include a proportion of the mass at zero in the density model")    
@@ -668,7 +685,6 @@ def parsecommandline():
 
     if deprecated_options_OFF  == True: # add the things not included in args by parser.parse_args() when this is set 
         args.fixmode0 = False
-        # args.estimate_pointmass0 = False
         args.thetaNspacerange = 100
         args.profile = False
         args.estimate_both_thetas = False

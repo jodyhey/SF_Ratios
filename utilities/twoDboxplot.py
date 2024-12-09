@@ -205,7 +205,7 @@ if __name__ == '__main__':
     """
     args = parsecommandline()
     includeoutliers =  args.includeoutliers
-    plotfname = args.fname[:-4] + "_with_outliers_alt2dplot.png" if includeoutliers else args.fname[:-4] + "_alt2dplot.png"
+    plotfname = args.fname[:-4] + "_with_outliers_alt2dplot.pdf" if includeoutliers else args.fname[:-4] + "_alt2dplot.pdf"
     gf = open(args.fname,'r')
     allgs = []
     truevals = []
@@ -246,7 +246,7 @@ if __name__ == '__main__':
     # alldata = [[x,y],[x2,y2]]
     # truevals = [[0.5**2,0.5**0.5],[0.5+0.5**2,0.5+0.5**0.5]]
 
-    # make2Dboxplot(alldata,truevals,"x string",'y string',"try2dplot.png")
+    # make2Dboxplot(alldata,truevals,"x string",'y string',"try2dplot.pdf")
     #x = np.random.rand(1000)
     #y = np.random.rand(1000)
 
