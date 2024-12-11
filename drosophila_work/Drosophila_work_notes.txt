@@ -1,0 +1,53 @@
+Drosophila_work_notes.txt  12/11/2024
+
+procedure for making short intron bedfile 
+	short introns
+		get file of cdsstarts and ends from ucsc for dm6 refseq
+		run Extract_merge_coding_introns_from_gene_table.py 
+			returns dm6_all_introns.bed
+		
+		remove identical introns and merge others
+		bedtools sort -i dm6_all_introns.bed | \
+		bedtools merge -s -c 6 -o distinct > dm6_merged_introns.bed
+		get bed file
+			remove longer introns and trim the splice sites
+	claude gave this script for sorting, removing non-short introns, and trimming off 3 bases from each end
+		get the chromosome sizes using 
+		 wget https://hgdownload.soe.ucsc.edu/goldenPath/dm6/bigZips/dm6.chrom.sizes
+	
+	bedtools sort -i dm6_merged_introns.bed | \
+	bedtools merge -i stdin | \
+	awk 'BEGIN{OFS="\t"} {if($3-$2 <= 85) print $0}' | \
+	bedtools slop -i stdin -g dm6.chrom.sizes -b -3 > dm6_short_trimmed_introns.bed
+	
+scripts:
+	make_SFS_from_SNP_allele_counts.py
+		make paired SFS file (input for SF_Ratios.py) from output files of get_short_intron_paired_SNP_allele_counts.py
+	get_short_intron_paired_SNP_allele_counts.py - read vcf and expression pickle (optionally)  make allele count file for Synonymous and nonsynoymous snps paired with closest short intron snp
+	make_FBtr_expression_pickle.py - make a pickle of transcript id and ranked gene exprssion score 
+	Extract_merge_coding_introns_from_gene_table.py  - used to make short intron file from gtf3 file 
+	make_SFS_from_SNP_paired_allele_counts.py  - make files of paired SFSs from output of get_short_intron_paired_SNP_allele_counts.py
+
+
+other files:
+	FBgn_values_and_sum_lifestage_expression_values.txt
+		gene expression values for transcripts,  summed over life stages 
+	dm6_short_trimmed_introns.bed
+		procedure for making short intron bedfile 
+			get file of cdsstarts and ends from ucsc for dm6 refseq
+			run Extract_merge_coding_introns_from_gene_table.py 
+				returns dm6_all_introns.bed
+			
+			remove identical introns and merge others
+			bedtools sort -i dm6_all_introns.bed | \
+			bedtools merge -s -c 6 -o distinct > dm6_merged_introns.bed
+			get bed file
+				remove longer introns and trim the splice sites
+			claude gave this script for sorting, removing non-short introns, and trimming off 3 bases from each end
+				get the chromosome sizes using 
+				 wget https://hgdownload.soe.ucsc.edu/goldenPath/dm6/bigZips/dm6.chrom.sizes
+			
+			bedtools sort -i dm6_merged_introns.bed | \
+			bedtools merge -i stdin | \
+			awk 'BEGIN{OFS="\t"} {if($3-$2 <= 85) print $0}' | \
+			bedtools slop -i stdin -g dm6.chrom.sizes -b -3 > dm6_short_trimmed_introns.bed		
